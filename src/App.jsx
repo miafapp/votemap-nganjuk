@@ -19,6 +19,7 @@ function App() {
   const [kecamatanList, setKecamatanList] = useState([])
   const [detail, setDetail] = useState(null)
   const [parties, setParties] = useState([])
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   const level = tpsId ? 'tps' : desaId ? 'desa' : kecamatanId ? 'kecamatan' : dapilId ? 'dapil' : null
   const levelId = tpsId || desaId || kecamatanId || dapilId
@@ -34,25 +35,36 @@ function App() {
   }, [pemiluId, dapilId])
 
   useEffect(() => {
-    if (!level || !levelId || !pemiluId) {
+    if (!pemiluId || !level) {
       setDetail(null)
       setParties([])
+      setLoadingDetail(false)
       return
     }
-    const params = {}
+
+    setLoadingDetail(true)
+    const params = { pemilu_id: pemiluId }
+    let apiLevel = level
+    let apiLevelId = levelId
+
     if (level === 'dapil') params.dapil_id = levelId
     if (level === 'kecamatan') params.kecamatan_id = levelId
     if (level === 'desa') params.desa_id = levelId
     if (level === 'tps') params.tps_id = levelId
-    params.pemilu_id = pemiluId
 
-    api.getWilayahDetail(params)
-      .then((data) => setDetail(Array.isArray(data) ? data[0] : data))
-      .catch(() => setDetail(null))
-
-    api.getSuara(level, levelId, pemiluId)
-      .then((data) => setParties(data))
-      .catch(() => setParties([]))
+    Promise.all([
+      api.getWilayahDetail(params),
+      api.getSuara(apiLevel, apiLevelId, pemiluId)
+    ])
+      .then(([detailData, partiesData]) => {
+        setDetail(Array.isArray(detailData) ? detailData[0] : detailData)
+        setParties(partiesData)
+      })
+      .catch(() => {
+        setDetail(null)
+        setParties([])
+      })
+      .finally(() => setLoadingDetail(false))
   }, [level, levelId, pemiluId])
 
   const handleReset = () => {
@@ -97,19 +109,27 @@ function App() {
         onReset={handleReset}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(230px,0.58fr)_minmax(280px,0.78fr)] gap-4">
-        <div className="lg:col-span-1 lg:row-span-1">
-          <MapView />
-        </div>
-        <div className="lg:col-span-1 lg:row-span-1">
-          <SummaryCards detail={detail} />
-        </div>
-        <div className="lg:col-span-1 lg:row-span-2 flex flex-col gap-4">
-          <PartyTable parties={parties} />
-          <DetailPanel detail={detail} parties={parties} />
-        </div>
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(230px,0.58fr)] gap-4">
+            <MapView 
+              pemiluId={pemiluId} 
+              dapilId={dapilId} 
+              kecamatanId={kecamatanId} 
+              desaId={desaId} 
+              tpsId={tpsId}
+              onDapilClick={handleDapilChange}
+              onKecamatanClick={(id) => { setKecamatanId(id); setDesaId(null); setTpsId(null) }}
+              onDesaClick={(id) => { setDesaId(id); setTpsId(null) }}
+              onTpsClick={setTpsId}
+            />
+            <SummaryCards detail={detail} loading={loadingDetail} />
+          </div>
           <BottomTable pemiluId={pemiluId} kecamatanList={kecamatanList} />
+        </div>
+        <div className="flex flex-col gap-4">
+          <PartyTable parties={parties} loading={loadingDetail} />
+          <DetailPanel detail={detail} parties={parties} />
         </div>
       </div>
 

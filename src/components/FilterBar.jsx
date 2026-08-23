@@ -5,15 +5,20 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
   const [kecamatanList, setKecamatanList] = useState([])
   const [desaList, setDesaList] = useState([])
   const [tpsList, setTpsList] = useState([])
+  const [loadingKecamatan, setLoadingKecamatan] = useState(false)
+  const [loadingDesa, setLoadingDesa] = useState(false)
+  const [loadingTps, setLoadingTps] = useState(false)
 
   useEffect(() => {
     if (!pemiluId) {
       setKecamatanList([])
       return
     }
+    setLoadingKecamatan(true)
     api.getKecamatan(pemiluId, dapilId)
       .then((data) => setKecamatanList(data))
       .catch(() => setKecamatanList([]))
+      .finally(() => setLoadingKecamatan(false))
   }, [pemiluId, dapilId])
 
   useEffect(() => {
@@ -21,9 +26,11 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
       setDesaList([])
       return
     }
+    setLoadingDesa(true)
     api.getDesa(kecamatanId, pemiluId, dapilId)
       .then((data) => setDesaList(data))
       .catch(() => setDesaList([]))
+      .finally(() => setLoadingDesa(false))
   }, [kecamatanId, pemiluId, dapilId])
 
   useEffect(() => {
@@ -31,9 +38,11 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
       setTpsList([])
       return
     }
+    setLoadingTps(true)
     api.getTps(pemiluId, desaId)
       .then((data) => setTpsList(data))
       .catch(() => setTpsList([]))
+      .finally(() => setLoadingTps(false))
   }, [desaId, pemiluId])
 
   return (
@@ -43,10 +52,10 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
         <select
           className="appearance-none w-full border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50"
           value={kecamatanId || ''}
-          disabled={!pemiluId}
+          disabled={!pemiluId || loadingKecamatan}
           onChange={(e) => onKecamatanChange(e.target.value ? Number(e.target.value) : null)}
         >
-          <option value="">Semua Kecamatan</option>
+          <option value="">{loadingKecamatan ? 'Memuat...' : 'Semua Kecamatan'}</option>
           {kecamatanList.map((k) => (
             <option key={k.id} value={k.id}>{k.nama || k.kecamatan}</option>
           ))}
@@ -58,10 +67,10 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
         <select
           className="appearance-none w-full border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50"
           value={desaId || ''}
-          disabled={!kecamatanId}
+          disabled={!kecamatanId || loadingDesa}
           onChange={(e) => onDesaChange(e.target.value ? Number(e.target.value) : null)}
         >
-          <option value="">Semua Desa / Kelurahan</option>
+          <option value="">{loadingDesa ? 'Memuat...' : 'Semua Desa / Kelurahan'}</option>
           {desaList.map((d) => (
             <option key={d.id} value={d.id}>{d.nama || d.desa}</option>
           ))}
@@ -73,10 +82,10 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
         <select
           className="appearance-none w-full border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50"
           value={''}
-          disabled={!desaId}
+          disabled={!desaId || loadingTps}
           onChange={(e) => onTpsChange(e.target.value ? Number(e.target.value) : null)}
         >
-          <option value="">Semua TPS</option>
+          <option value="">{loadingTps ? 'Memuat...' : 'Semua TPS'}</option>
           {tpsList.map((t) => (
             <option key={t.id} value={t.id}>TPS {t.nomor}</option>
           ))}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import React from 'react'
 import { api } from '../lib/api'
 import { getPartyLogo } from '../lib/party-logos'
 
@@ -54,8 +55,8 @@ export default function BottomTable({ pemiluId, kecamatanList }) {
               </tr>
             ) : (
               kecamatanList.map((kec, i) => (
-                <>
-                  <tr key={kec.id || kec.kecamatan_id}>
+                <React.Fragment key={kec.id || kec.kecamatan_id}>
+                  <tr key={`row-${kec.id || kec.kecamatan_id}`}>
                     <td className="px-2 py-2 border border-[#ecdfcb] text-center">{i + 1}</td>
                     <td className="px-2 py-2 border border-[#ecdfcb] font-bold text-left">{kec.nama || kec.kecamatan}</td>
                     <td className="px-2 py-2 border border-[#ecdfcb] text-center">
@@ -68,7 +69,7 @@ export default function BottomTable({ pemiluId, kecamatanList }) {
                     </td>
                   </tr>
                   {expandedId === (kec.id || kec.kecamatan_id) && (
-                    <tr>
+                    <tr key={`expanded-${kec.id || kec.kecamatan_id}`}>
                       <td colSpan={3} className="px-2 py-2 border border-[#ecdfcb] bg-[#fff9ed]">
                         {loading ? (
                           <div className="text-center py-4 text-[#82776e]">Memuat data suara...</div>
@@ -90,7 +91,7 @@ export default function BottomTable({ pemiluId, kecamatanList }) {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))
             )}
           </tbody>

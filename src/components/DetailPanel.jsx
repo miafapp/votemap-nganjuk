@@ -1,5 +1,14 @@
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { getPartyLogo } from '../lib/party-logos'
+
 export default function DetailPanel({ detail, parties }) {
   const hasDetail = detail !== null
+
+  const chartData = parties.map((p) => ({
+    name: p.kode_partai,
+    suara: p.jumlah_suara || 0,
+    nama: p.nama_partai,
+  })).sort((a, b) => b.suara - a.suara)
 
   return (
     <section className="border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
@@ -24,6 +33,45 @@ export default function DetailPanel({ detail, parties }) {
             {detail.jumlah_desa !== undefined && <div><span className="text-[#82776e] text-xs">Jumlah Desa:</span><br /><strong>{detail.jumlah_desa}</strong></div>}
             {detail.jumlah_kecamatan !== undefined && <div><span className="text-[#82776e] text-xs">Jumlah Kecamatan:</span><br /><strong>{detail.jumlah_kecamatan}</strong></div>}
           </div>
+
+          {chartData.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-bold text-[#82776e] mb-2">Perolehan Suara Partai</h3>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e4d9c7" />
+                    <XAxis type="number" hide />
+                    <YAxis 
+                      type="category" 
+                      dataKey="name" 
+                      tick={{ fontSize: 10, fill: '#82776e' }}
+                      width={45}
+                      tickFormatter={(value) => value}
+                    />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload
+                          return (
+                            <div className="bg-white p-2 rounded shadow border border-[#e4d9c7] text-xs">
+                              <div className="flex items-center gap-2 mb-1">
+                                <img src={getPartyLogo(data.name)} alt={data.nama} className="w-4 h-4 rounded-sm" />
+                                <strong>{data.nama}</strong>
+                              </div>
+                              <div>Suara: {data.suara.toLocaleString('id-ID')}</div>
+                            </div>
+                          )
+                        }
+                        return null
+                      }}
+                    />
+                    <Bar dataKey="suara" fill="#E8442B" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

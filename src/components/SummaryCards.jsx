@@ -1,4 +1,4 @@
-export default function SummaryCards({ detail }) {
+export default function SummaryCards({ detail, loading }) {
   const dpt = detail?.dpt ?? '-'
   const suaraSah = detail?.suara_sah ?? '-'
   const partisipasi = detail && detail.dpt > 0
@@ -20,17 +20,23 @@ export default function SummaryCards({ detail }) {
         <h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Ringkasan Suara</h2>
       </div>
       <div className="grid gap-3 px-4 pb-4">
-        {stats.map((s) => (
-          <div key={s.label} className="flex items-center gap-3 min-h-[72px] px-3 py-2.5 border border-[#eee3d1] rounded-lg">
-            <span className="text-[#c4482a] text-2xl w-9 text-center">{s.icon}</span>
-            <div>
-              <small className="block text-xs text-[#82776e]">{s.label}</small>
-              <strong className="block font-bold text-xl [font-family:Georgia,serif] mt-0.5">
-                {typeof s.value === 'number' ? s.value.toLocaleString('id-ID') : s.value}
-              </strong>
-            </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-[72px] text-[#82776e] text-sm">
+            Memuat data...
           </div>
-        ))}
+        ) : (
+          stats.map((s) => (
+            <div key={s.label} className="flex items-center gap-3 min-h-[72px] px-3 py-2.5 border border-[#eee3d1] rounded-lg">
+              <span className="text-[#c4482a] text-2xl w-9 text-center">{s.icon}</span>
+              <div>
+                <small className="block text-xs text-[#82776e]">{s.label}</small>
+                <strong className="block font-bold text-xl [font-family:Georgia,serif] mt-0.5">
+                  {typeof s.value === 'number' ? s.value.toLocaleString('id-ID') : s.value}
+                </strong>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </section>
   )

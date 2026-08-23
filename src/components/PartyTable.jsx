@@ -1,6 +1,6 @@
 import { getPartyLogo } from '../lib/party-logos'
 
-export default function PartyTable({ parties, totalSuara }) {
+export default function PartyTable({ parties, totalSuara, loading }) {
   const total = totalSuara || parties.reduce((sum, p) => sum + (p.jumlah_suara || 0), 0)
 
   return (
@@ -16,7 +16,9 @@ export default function PartyTable({ parties, totalSuara }) {
           <span className="text-right">Suara</span>
           <span className="text-right">%</span>
         </div>
-        {parties.length === 0 ? (
+        {loading ? (
+          <div className="px-2 py-4 text-[#82776e] text-center">Memuat data...</div>
+        ) : parties.length === 0 ? (
           <div className="px-2 py-4 text-[#82776e] text-center">Pilih wilayah untuk melihat data partai</div>
         ) : (
           parties.map((p, i) => (
