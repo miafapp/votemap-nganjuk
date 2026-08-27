@@ -17,7 +17,7 @@ function MapController({ bounds }) {
 }
 
 const tpsIcon = new L.Icon({
-  iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiNjNDQ4MmEiLz4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iNiIgZmlsbD0iI2ZmZiIvPgo8L3N2Zz4=',
+  iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIiBmaWxsPSIjYzQ0ODJhIi8+CjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjYiIGZpbGw9IiNmZmYiLz4KPC9zdmc+',
   iconSize: [24, 24],
   iconAnchor: [12, 12],
   popupAnchor: [0, -12],
@@ -56,7 +56,16 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
   useEffect(() => {
     if (desaId && pemiluId) {
       api.getGisTps(desaId, pemiluId)
-        .then((data) => setTpsMarkers(data))
+        .then((data) => {
+          const markers = (Array.isArray(data) ? data : [])
+            .map((tps) => ({
+              ...tps,
+              lat: Number(tps.lat),
+              lng: Number(tps.lng),
+            }))
+            .filter((tps) => Number.isFinite(tps.lat) && Number.isFinite(tps.lng))
+          setTpsMarkers(markers)
+        })
         .catch(() => setTpsMarkers([]))
     } else {
       setTpsMarkers([])
@@ -98,7 +107,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
   }
 
   const handleFeatureClick = (feature, level) => {
-    let id, bounds
+    let id
     if (level === 'dapil') {
       id = feature.properties.dapil_id
       onDapilClick(id)
