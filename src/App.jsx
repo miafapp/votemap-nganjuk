@@ -43,18 +43,13 @@ function App() {
     }
 
     setLoadingDetail(true)
-    const params = { pemilu_id: pemiluId }
-    let apiLevel = level
-    let apiLevelId = levelId
-
-    if (level === 'dapil') params.dapil_id = levelId
-    if (level === 'kecamatan') params.kecamatan_id = levelId
-    if (level === 'desa') params.desa_id = levelId
-    if (level === 'tps') params.tps_id = levelId
+    const apiLevel = level.toUpperCase()
 
     Promise.all([
-      api.getWilayahDetail(params),
-      api.getSuara(apiLevel, apiLevelId, pemiluId)
+      level === 'tps'
+        ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: levelId })
+        : api.getRekapWilayah(pemiluId, apiLevel, levelId),
+      api.getSuara(level, levelId, pemiluId)
     ])
       .then(([detailData, partiesData]) => {
         setDetail(Array.isArray(detailData) ? detailData[0] : detailData)
