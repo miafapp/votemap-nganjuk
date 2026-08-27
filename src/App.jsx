@@ -45,21 +45,23 @@ function App() {
     setLoadingDetail(true)
     const apiLevel = level.toUpperCase()
 
-    Promise.all([
-      level === 'tps'
-        ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: levelId })
-        : api.getRekapWilayah(pemiluId, apiLevel, levelId),
-      api.getSuara(level, levelId, pemiluId)
-    ])
-      .then(([detailData, partiesData]) => {
+    // Summary dan daftar partai tidak saling bergantung.
+    // Endpoint suara pada level DAPIL dapat memproses banyak baris data,
+    // sehingga jangan menahan tampilan infografis sampai request tersebut selesai.
+    const detailRequest = level === 'tps'
+      ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: levelId })
+      : api.getRekapWilayah(pemiluId, apiLevel, levelId)
+
+    detailRequest
+      .then((detailData) => {
         setDetail(Array.isArray(detailData) ? detailData[0] : detailData)
-        setParties(partiesData)
       })
-      .catch(() => {
-        setDetail(null)
-        setParties([])
-      })
+      .catch(() => setDetail(null))
       .finally(() => setLoadingDetail(false))
+
+    api.getSuara(level, levelId, pemiluId)
+      .then((partiesData) => setParties(partiesData))
+      .catch(() => setParties([]))
   }, [level, levelId, pemiluId])
 
   const handleReset = () => {
