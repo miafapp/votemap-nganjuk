@@ -9,6 +9,42 @@ import BottomTable from './components/BottomTable'
 import Footer from './components/Footer'
 import { api } from './lib/api'
 
+const PARTY_CODES = {
+  'PKB': 'PKB',
+  'Gerindra': 'GERINDRA',
+  'PDI Perjuangan': 'PDI-P',
+  'Golkar': 'GOLKAR',
+  'NasDem': 'NASDEM',
+  'Buruh': 'BURUH',
+  'Gelora': 'GELORA',
+  'PKS': 'PKS',
+  'PKN': 'PKN',
+  'Hanura': 'HANURA',
+  'Garuda': 'GARUDA',
+  'PAN': 'PAN',
+  'PBB': 'PBB',
+  'Demokrat': 'DEMOKRAT',
+  'PSI': 'PSI',
+  'Perindo': 'PERINDO',
+  'PPP': 'PPP',
+  'Ummat': 'UMMAT',
+}
+
+function normalizeParties(parties) {
+  return (Array.isArray(parties) ? parties : []).map((party) => {
+    const code = party.kode_partai || PARTY_CODES[party.singkatan] || party.singkatan || ''
+    const name = party.nama_partai || party.singkatan || ''
+    const votes = party.jumlah_suara ?? party.total_suara ?? 0
+
+    return {
+      ...party,
+      kode_partai: code,
+      nama_partai: name,
+      jumlah_suara: votes,
+    }
+  })
+}
+
 function App() {
   const [pemiluId, setPemiluId] = useState(null)
   const [dapilId, setDapilId] = useState(null)
@@ -61,17 +97,21 @@ function App() {
 
     if (level === 'tps') {
       api.getSuara(level, levelId, pemiluId)
-        .then((partiesData) => setParties(partiesData))
+        .then((partiesData) => setParties(normalizeParties(partiesData)))
         .catch(() => setParties([]))
         .finally(() => setLoadingParties(false))
     } else {
       api.getRekapWilayahPartai(pemiluId, apiLevel, levelId)
         .then((partiesData) => {
-          const normalized = (Array.isArray(partiesData) ? partiesData : []).map((party) => ({
-            ...party,
-            jumlah_suara: party.jumlah_suara ?? party.total_suara ?? 0,
-          }))
-          setParties(normalized)
+          const normalized = normalizeParties(partiesData)
+
+          if (normalized.length > 0) {
+            setParties(normalized)
+            return null
+          }
+
+          return api.getSuara(level, levelId, pemiluId)
+            .then((fallbackData) => setParties(normalizeParties(fallbackData)))
         })
         .catch(() => setParties([]))
         .finally(() => setLoadingParties(false))
