@@ -71,7 +71,7 @@ function getFeatureBounds(feature) {
   return bounds.isValid() ? bounds : null
 }
 
-function normalizeCoordinatePosition(value) {
+function normalizePosition(value) {
   if (!Array.isArray(value) || value.length < 2) return null
   const lng = Number(value[0])
   const lat = Number(value[1])
@@ -79,46 +79,97 @@ function normalizeCoordinatePosition(value) {
   return [lng, lat]
 }
 
-function normalizeGeoJsonCoordinates(value) {
-  if (!Array.isArray(value)) return value
+function normalizePositionList(value) {
+  if (!Array.isArray(value)) return []
 
-  const isScalarArray = value.every((item) => !Array.isArray(item))
-  if (isScalarArray) {
-    if (value.length === 2 || value.length === 3) {
-      return normalizeCoordinatePosition(value)
+  if (value.every((item) => !Array.isArray(item))) {
+    const numbers = value.map(Number)
+    if (numbers.length === 3) {
+      const position = normalizePosition(numbers)
+      return position ? [position] : []
     }
 
-    if (value.length > 3 && value.length % 2 === 0) {
-      const positions = []
-      for (let index = 0; index < value.length; index += 2) {
-        const position = normalizeCoordinatePosition([value[index], value[index + 1]])
-        if (position) positions.push(position)
-      }
-      return positions
+    const positions = []
+    for (let index = 0; index + 1 < numbers.length; index += 2) {
+      const position = normalizePosition([numbers[index], numbers[index + 1]])
+      if (position) positions.push(position)
     }
-
-    return value
+    return positions
   }
 
-  return value.map(normalizeGeoJsonCoordinates)
+  const positions = []
+  for (const item of value) {
+    if (!Array.isArray(item)) continue
+
+    if (item.every((part) => !Array.isArray(part))) {
+      const itemNumbers = item.map(Number)
+      if (itemNumbers.length === 2 || itemNumbers.length === 3) {
+        const position = normalizePosition(itemNumbers)
+        if (position) positions.push(position)
+        continue
+      }
+
+      for (let index = 0; index + 1 < itemNumbers.length; index += 2) {
+        const position = normalizePosition([itemNumbers[index], itemNumbers[index + 1]])
+        if (position) positions.push(position)
+      }
+      continue
+    }
+
+    positions.push(...normalizePositionList(item))
+  }
+
+  return positions
+}
+
+function normalizePolygonCoordinates(coordinates) {
+  if (!Array.isArray(coordinates)) return []
+  return coordinates.map((ring) => normalizePositionList(ring)).filter((ring) => ring.length >= 3)
+}
+
+function normalizeMultiPolygonCoordinates(coordinates) {
+  if (!Array.isArray(coordinates)) return []
+  return coordinates
+    .map((polygon) => normalizePolygonCoordinates(polygon))
+    .filter((polygon) => polygon.length > 0)
 }
 
 function normalizeGeoJson(data) {
   if (!data) return data
+
   if (data.type === 'FeatureCollection') {
     return { ...data, features: data.features.map(normalizeGeoJson) }
   }
+
   if (data.type === 'Feature') {
     return { ...data, geometry: normalizeGeoJson(data.geometry) }
   }
+
   if (data.type === 'GeometryCollection') {
     return { ...data, geometries: data.geometries.map(normalizeGeoJson) }
   }
-  if (data.type === 'Polygon' || data.type === 'MultiPolygon' || data.type === 'MultiLineString' || data.type === 'LineString' || data.type === 'Point' || data.type === 'MultiPoint') {
-    return { ...data, coordinates: normalizeGeoJsonCoordinates(data.coordinates) }
+
+  if (data.type === 'Point') {
+    return { ...data, coordinates: normalizePosition(data.coordinates) }
   }
+
+  if (data.type === 'MultiPoint' || data.type === 'LineString') {
+    return { ...data, coordinates: normalizePositionList(data.coordinates) }
+  }
+
+  if (data.type === 'MultiLineString') {
+    return { ...data, coordinates: Array.isArray(data.coordinates) ? data.coordinates.map(normalizePositionList).filter((line) => line.length >= 2) : [] }
+  }
+
+  if (data.type === 'Polygon') {
+    return { ...data, coordinates: normalizePolygonCoordinates(data.coordinates) }
+  }
+
+  if (data.type === 'MultiPolygon') {
+    return { ...data, coordinates: normalizeMultiPolygonCoordinates(data.coordinates) }
+  }
+
   if (data.geometry) return { ...data, geometry: normalizeGeoJson(data.geometry) }
-  if (data.coordinates) return { ...data, coordinates: normalizeGeoJsonCoordinates(data.coordinates) }
   return data
 }
 
