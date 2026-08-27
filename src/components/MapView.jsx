@@ -5,12 +5,16 @@ import 'leaflet/dist/leaflet.css'
 import { api } from '../lib/api'
 
 const DAPIL_COLORS = ['#E8442B', '#F5A623', '#22C55E', '#14B8A6', '#8B5CF6']
+const DEFAULT_MAP_CENTER = [-7.6, 111.9]
+const DEFAULT_MAP_ZOOM = 10
 
 function MapController({ bounds }) {
   const map = useMap()
   useEffect(() => {
     if (bounds) {
       map.fitBounds(bounds)
+    } else {
+      map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM)
     }
   }, [bounds, map])
   return null
@@ -210,8 +214,8 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
         ) : (
           <MapContainer
             ref={mapRef}
-            center={[-7.6, 111.9]}
-            zoom={10}
+            center={DEFAULT_MAP_CENTER}
+            zoom={DEFAULT_MAP_ZOOM}
             style={{ height: '400px', width: '100%' }}
             className="rounded-lg"
             zoomControl={false}
