@@ -5,29 +5,28 @@ import 'leaflet/dist/leaflet.css'
 import { api } from '../lib/api'
 
 const DAPIL_COLORS = ['#E8442B', '#F5A623', '#22C55E', '#14B8A6', '#8B5CF6']
-const KECAMATAN_COLORS = ['#2E7D32', '#388E3C', '#43A047', '#4CAF50', '#66BB6A', '#7CB342', '#8BC34A']
-const DESA_COLORS = ['#1565C0', '#1976D2', '#1E88E5', '#2196F3', '#42A5F5', '#64B5F6', '#90CAF9']
+const KECAMATAN_COLORS = ['#1B5E20', '#6A1B9A', '#0D47A1', '#E65100', '#00695C', '#AD1457', '#4E342E', '#1565C0']
+const DESA_COLORS = ['#B71C1C', '#4A148C', '#004D40', '#BF360C', '#01579B', '#33691E', '#6D4C41', '#283593', '#827717', '#880E4F']
 const DEFAULT_MAP_CENTER = [-7.6, 111.9]
 const DEFAULT_MAP_ZOOM = 10
-const MAP_PADDING = [32, 32]
+const MAP_PADDING = [8, 8]
 
 function MapController({ bounds, level }) {
   const map = useMap()
 
   useEffect(() => {
-    if (level === 'tps' && bounds) {
-      const center = bounds.getCenter ? bounds.getCenter() : L.latLng(bounds[0][0], bounds[0][1])
-      map.setView(center, 16)
+    if (!bounds || !bounds.isValid?.()) {
+      map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM)
       return
     }
 
-    if (bounds) {
-      const maxZoom = level === 'kabupaten' ? 11 : level === 'dapil' ? 12 : level === 'kecamatan' ? 14 : 15
-      map.fitBounds(bounds, { padding: MAP_PADDING, maxZoom })
+    if (level === 'tps') {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 })
       return
     }
 
-    map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM)
+    const maxZoom = level === 'kabupaten' ? 13 : level === 'dapil' ? 15 : level === 'kecamatan' ? 17 : 18
+    map.fitBounds(bounds, { padding: MAP_PADDING, maxZoom })
   }, [bounds, level, map])
 
   return null
@@ -44,20 +43,13 @@ function createTpsIcon(nomor) {
   })
 }
 
-function createRegionLabelIcon(name, className) {
-  const safeName = String(name ?? '')
+function escapeHtml(value) {
+  return String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
-
-  return L.divIcon({
-    className: `region-label ${className}`,
-    html: `<span>${safeName}</span>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  })
 }
 
 function getFeatureId(feature, key) {
@@ -73,10 +65,10 @@ function getFeatureName(feature, keys) {
   return ''
 }
 
-function getFeatureCenter(feature) {
+function getFeatureBounds(feature) {
   if (!feature?.geometry) return null
   const bounds = L.geoJSON(feature).getBounds()
-  return bounds.isValid() ? bounds.getCenter() : null
+  return bounds.isValid() ? bounds : null
 }
 
 function ContextMask({ contextFeature, maskKey }) {
@@ -84,13 +76,13 @@ function ContextMask({ contextFeature, maskKey }) {
 
   const worldRing = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]
   const geometry = contextFeature.geometry
-  const holes = geometry.type === 'Polygon'
+  const rings = geometry.type === 'Polygon'
     ? geometry.coordinates
     : geometry.type === 'MultiPolygon'
       ? geometry.coordinates.flat()
       : []
 
-  if (!holes.length) return null
+  if (!rings.length) return null
 
   return (
     <GeoJSON
@@ -98,35 +90,27 @@ function ContextMask({ contextFeature, maskKey }) {
       data={{
         type: 'Feature',
         properties: {},
-        geometry: { type: 'Polygon', coordinates: [worldRing, ...holes] },
+        geometry: { type: 'Polygon', coordinates: [worldRing, ...rings] },
       }}
-      style={{ fillColor: '#808080', color: '#808080', weight: 0, fillOpacity: 0.48 }}
+      style={{ fillColor: '#808080', color: '#808080', weight: 0, fillOpacity: 1, fillRule: 'evenodd' }}
       interactive={false}
     />
   )
 }
 
-function RegionLabels({ features, nameKeys, className, filter }) {
-  return (features || []).map((feature) => {
-    if (filter && !filter(feature)) return null
-    const center = getFeatureCenter(feature)
-    const name = getFeatureName(feature, nameKeys)
-    if (!center || !name) return null
-
-    const key = `${className}-${getFeatureId(feature, nameKeys[0]) ?? name}`
-    return (
-      <Marker
-        key={key}
-        position={center}
-        icon={createRegionLabelIcon(name, className)}
-        interactive={false}
-        keyboard={false}
-      />
-    )
-  })
+function bindRegionTooltip(feature, layer, nameKeys) {
+  const name = getFeatureName(feature, nameKeys)
+  if (name) {
+    layer.bindTooltip(escapeHtml(name), {
+      sticky: true,
+      direction: 'top',
+      opacity: 0.96,
+      className: 'region-tooltip',
+    })
+  }
 }
 
-export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId, onDapilClick, onKecamatanClick, onDesaClick, onTpsClick }) {
+export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId, refreshToken = 0, onDapilClick, onKecamatanClick, onDesaClick, onTpsClick }) {
   const [dapilGeoJson, setDapilGeoJson] = useState(null)
   const [kecamatanGeoJson, setKecamatanGeoJson] = useState(null)
   const [desaGeoJson, setDesaGeoJson] = useState(null)
@@ -162,7 +146,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
         setError(err.message)
         setLoading(false)
       })
-  }, [])
+  }, [refreshToken])
 
   useEffect(() => {
     if (!desaId || !pemiluId) {
@@ -173,16 +157,12 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
     api.getGisTps(desaId, pemiluId)
       .then((data) => {
         const markers = (Array.isArray(data) ? data : [])
-          .map((tps) => ({
-            ...tps,
-            lat: Number(tps.lat ?? tps.latitude),
-            lng: Number(tps.lng ?? tps.longitude),
-          }))
+          .map((tps) => ({ ...tps, lat: Number(tps.lat ?? tps.latitude), lng: Number(tps.lng ?? tps.longitude) }))
           .filter((tps) => Number.isFinite(tps.lat) && Number.isFinite(tps.lng))
         setTpsMarkers(markers)
       })
       .catch(() => setTpsMarkers([]))
-  }, [desaId, pemiluId])
+  }, [desaId, pemiluId, refreshToken])
 
   const mapLevel = tpsId ? 'tps' : desaId ? 'desa' : kecamatanId ? 'kecamatan' : dapilId ? 'dapil' : 'kabupaten'
 
@@ -205,12 +185,8 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
           ? dapilGeoJson.features.find((item) => getFeatureId(item, 'dapil_id') === Number(dapilId))
           : null
 
-    if (feature?.geometry) {
-      setSelectedBounds(L.geoJSON(feature).getBounds())
-      return
-    }
-
-    setSelectedBounds(L.geoJSON(dapilGeoJson).getBounds())
+    const bounds = feature ? getFeatureBounds(feature) : getFeatureBounds({ type: 'Feature', geometry: { type: 'MultiPolygon', coordinates: dapilGeoJson.features.map((f) => f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates) } })
+    setSelectedBounds(bounds)
   }, [mapLevel, dapilId, kecamatanId, desaId, tpsId, dapilGeoJson, kecamatanGeoJson, desaGeoJson, tpsMarkers])
 
   const handleFeatureClick = (feature, level) => {
@@ -223,13 +199,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
     const id = getFeatureId(feature, 'dapil_id')
     const isSelected = Number(dapilId) === id
     const colorIndex = Math.max(0, ((id || 1) - 1) % DAPIL_COLORS.length)
-    return {
-      fillColor: DAPIL_COLORS[colorIndex],
-      weight: isSelected ? 3 : 2,
-      opacity: 1,
-      color: isSelected ? '#234c4c' : '#666',
-      fillOpacity: isSelected ? 0.72 : 0.5,
-    }
+    return { fillColor: DAPIL_COLORS[colorIndex], weight: isSelected ? 3 : 2, opacity: 1, color: isSelected ? '#234c4c' : '#555', fillOpacity: isSelected ? 0.72 : 0.58 }
   }
 
   const kecamatanStyle = (feature) => {
@@ -237,13 +207,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
     const isSelected = Number(kecamatanId) === id
     const inSelectedDapil = !dapilId || getFeatureId(feature, 'dapil_id') === Number(dapilId)
     const colorIndex = Math.abs((id || 1) - 1) % KECAMATAN_COLORS.length
-    return {
-      fillColor: inSelectedDapil ? KECAMATAN_COLORS[colorIndex] : '#999',
-      weight: isSelected ? 3 : 1,
-      opacity: inSelectedDapil ? 1 : 0.35,
-      color: isSelected ? '#183f22' : '#777',
-      fillOpacity: isSelected ? 0.72 : inSelectedDapil ? 0.52 : 0.1,
-    }
+    return { fillColor: inSelectedDapil ? KECAMATAN_COLORS[colorIndex] : '#777', weight: isSelected ? 3 : 1.5, opacity: inSelectedDapil ? 1 : 0.35, color: isSelected ? '#111' : '#fff', fillOpacity: isSelected ? 0.78 : inSelectedDapil ? 0.68 : 0.12 }
   }
 
   const desaStyle = (feature) => {
@@ -251,24 +215,21 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
     const isSelected = Number(desaId) === id
     const inSelectedKecamatan = !kecamatanId || getFeatureId(feature, 'kecamatan_id') === Number(kecamatanId)
     const colorIndex = Math.abs((id || 1) - 1) % DESA_COLORS.length
-    return {
-      fillColor: inSelectedKecamatan ? DESA_COLORS[colorIndex] : '#999',
-      weight: isSelected ? 3 : 1,
-      opacity: inSelectedKecamatan ? 1 : 0.35,
-      color: isSelected ? '#123c68' : '#777',
-      fillOpacity: isSelected ? 0.72 : inSelectedKecamatan ? 0.48 : 0.1,
-    }
+    return { fillColor: inSelectedKecamatan ? DESA_COLORS[colorIndex] : '#777', weight: isSelected ? 3 : 1.5, opacity: inSelectedKecamatan ? 1 : 0.35, color: isSelected ? '#111' : '#fff', fillOpacity: isSelected ? 0.8 : inSelectedKecamatan ? 0.68 : 0.12 }
   }
 
   const onEachDapil = (feature, layer) => {
+    bindRegionTooltip(feature, layer, ['nama', 'dapil'])
     layer.on({ click: () => handleFeatureClick(feature, 'dapil') })
   }
 
   const onEachKecamatan = (feature, layer) => {
+    bindRegionTooltip(feature, layer, ['kecamatan', 'nama'])
     layer.on({ click: () => handleFeatureClick(feature, 'kecamatan') })
   }
 
   const onEachDesa = (feature, layer) => {
+    bindRegionTooltip(feature, layer, ['desa', 'nama'])
     layer.on({ click: () => handleFeatureClick(feature, 'desa') })
   }
 
@@ -282,9 +243,6 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
   const showDesa = mapLevel === 'kecamatan' || mapLevel === 'desa' || mapLevel === 'tps'
   const showTps = mapLevel === 'desa' || mapLevel === 'tps'
 
-  const selectedDapilFilter = (feature) => !dapilId || getFeatureId(feature, 'dapil_id') === Number(dapilId)
-  const selectedKecamatanFilter = (feature) => !kecamatanId || getFeatureId(feature, 'kecamatan_id') === Number(kecamatanId)
-
   return (
     <section className="border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3">
@@ -292,66 +250,34 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
         <h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Peta Wilayah Kabupaten Nganjuk</h2>
       </div>
       <div className="px-4 pb-5">
-        {loading ? (
-          <div className="flex items-center justify-center h-[400px] text-[#82776e] text-sm">Memuat peta...</div>
-        ) : error ? (
-          <div className="flex items-center justify-center h-[400px] text-red-600 text-sm">{error}</div>
-        ) : (
+        {loading ? <div className="flex items-center justify-center h-[400px] text-[#82776e] text-sm">Memuat peta...</div> : error ? <div className="flex items-center justify-center h-[400px] text-red-600 text-sm">{error}</div> : (
           <MapContainer center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM} style={{ height: '400px', width: '100%' }} className="rounded-lg" zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} touchZoom={false}>
             <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             <MapController bounds={selectedBounds} level={mapLevel} />
 
             {mapLevel !== 'kabupaten' && <ContextMask contextFeature={contextFeature} maskKey={`${mapLevel}-${dapilId || ''}-${kecamatanId || ''}-${desaId || ''}`} />}
 
-            {showDapil && dapilGeoJson && (
-              <>
-                <GeoJSON data={dapilGeoJson} style={dapilStyle} onEachFeature={onEachDapil} />
-                <RegionLabels
-                  features={dapilGeoJson.features}
-                  nameKeys={['nama', 'dapil']}
-                  className="dapil-label"
-                />
-              </>
-            )}
+            {showDapil && dapilGeoJson && <GeoJSON data={dapilGeoJson} style={dapilStyle} onEachFeature={onEachDapil} />}
 
-            {showKecamatan && kecamatanGeoJson && (
-              <>
-                <GeoJSON data={kecamatanGeoJson} style={kecamatanStyle} onEachFeature={onEachKecamatan} />
-                <RegionLabels
-                  features={kecamatanGeoJson.features}
-                  nameKeys={['kecamatan', 'nama']}
-                  className="kecamatan-label"
-                  filter={selectedDapilFilter}
-                />
-              </>
-            )}
+            {showKecamatan && kecamatanGeoJson && <GeoJSON data={kecamatanGeoJson} style={kecamatanStyle} onEachFeature={onEachKecamatan} />}
 
-            {showDesa && desaGeoJson && (
-              <>
-                <GeoJSON data={desaGeoJson} style={desaStyle} onEachFeature={onEachDesa} />
-                {mapLevel === 'kecamatan' && (
-                  <RegionLabels
-                    features={desaGeoJson.features}
-                    nameKeys={['desa', 'nama']}
-                    className="desa-label"
-                    filter={selectedKecamatanFilter}
-                  />
-                )}
-              </>
-            )}
+            {showDesa && desaGeoJson && <GeoJSON data={desaGeoJson} style={desaStyle} onEachFeature={onEachDesa} />}
 
-            {showTps && tpsMarkers.map((tps) => (
-              <Marker
-                key={tps.id}
-                position={[tps.lat, tps.lng]}
-                icon={createTpsIcon(tps.nomor)}
-                eventHandlers={{ click: () => onTpsClick(tps.id) }}
-              >
-                <Popup>
-                  <div className="text-xs"><strong>TPS {String(tps.nomor ?? '').padStart(3, '0')}</strong><br />{tps.alamat || ''}</div>
-                </Popup>
-              </Marker>
-            ))}
+            {showTps && tpsMarkers.map((tps) => {
+              const nomor = String(tps.nomor ?? '').padStart(3, '0')
+              const routeUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${tps.lat},${tps.lng}`)}`
+              return (
+                <Marker key={tps.id} position={[tps.lat, tps.lng]} icon={createTpsIcon(tps.nomor)} eventHandlers={{ click: () => onTpsClick(tps.id) }}>
+                  <Popup>
+                    <div className="text-xs min-w-[150px]">
+                      <strong>TPS {nomor}</strong>
+                      {tps.alamat ? <><br />{tps.alamat}</> : null}
+                      <a href={routeUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center rounded bg-[#c4482a] px-2.5 py-1.5 text-white font-semibold no-underline hover:bg-[#b03d22]">Buka Rute Google Maps</a>
+                    </div>
+                  </Popup>
+                </Marker>
+              )
+            })}
           </MapContainer>
         )}
       </div>
