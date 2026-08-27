@@ -71,6 +71,36 @@ function getFeatureBounds(feature) {
   return bounds.isValid() ? bounds : null
 }
 
+// The source GeoJSON contains altitude as a third coordinate (lng, lat, 0).
+// Leaflet only needs lng/lat here. Normalize every coordinate recursively so
+// Polygon and MultiPolygon data cannot be interpreted as malformed LatLngs.
+function normalizeGeoJsonCoordinates(value) {
+  if (!Array.isArray(value)) return value
+  if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+    return [value[0], value[1]]
+  }
+  return value.map(normalizeGeoJsonCoordinates)
+}
+
+function normalizeGeoJson(data) {
+  if (!data) return data
+  if (data.type === 'FeatureCollection') {
+    return { ...data, features: data.features.map(normalizeGeoJson) }
+  }
+  if (data.type === 'Feature') {
+    return { ...data, geometry: normalizeGeoJson(data.geometry) }
+  }
+  if (data.type === 'GeometryCollection') {
+    return { ...data, geometries: data.geometries.map(normalizeGeoJson) }
+  }
+  if (data.type === 'Polygon' || data.type === 'MultiPolygon' || data.type === 'MultiLineString' || data.type === 'LineString' || data.type === 'Point' || data.type === 'MultiPoint') {
+    return { ...data, coordinates: normalizeGeoJsonCoordinates(data.coordinates) }
+  }
+  if (data.geometry) return { ...data, geometry: normalizeGeoJson(data.geometry) }
+  if (data.coordinates) return { ...data, coordinates: normalizeGeoJsonCoordinates(data.coordinates) }
+  return data
+}
+
 function ContextMask({ contextFeature, maskKey }) {
   if (!contextFeature?.geometry) return null
 
@@ -137,9 +167,9 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
       }),
     ])
       .then(([dapil, kecamatan, desa]) => {
-        setDapilGeoJson(dapil)
-        setKecamatanGeoJson(kecamatan)
-        setDesaGeoJson(desa)
+        setDapilGeoJson(normalizeGeoJson(dapil))
+        setKecamatanGeoJson(normalizeGeoJson(kecamatan))
+        setDesaGeoJson(normalizeGeoJson(desa))
         setLoading(false)
       })
       .catch((err) => {
@@ -258,9 +288,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
             {mapLevel !== 'kabupaten' && <ContextMask contextFeature={contextFeature} maskKey={`${mapLevel}-${dapilId || ''}-${kecamatanId || ''}-${desaId || ''}`} />}
 
             {showDapil && dapilGeoJson && <GeoJSON data={dapilGeoJson} style={dapilStyle} onEachFeature={onEachDapil} />}
-
             {showKecamatan && kecamatanGeoJson && <GeoJSON data={kecamatanGeoJson} style={kecamatanStyle} onEachFeature={onEachKecamatan} />}
-
             {showDesa && desaGeoJson && <GeoJSON data={desaGeoJson} style={desaStyle} onEachFeature={onEachDesa} />}
 
             {showTps && tpsMarkers.map((tps) => {
