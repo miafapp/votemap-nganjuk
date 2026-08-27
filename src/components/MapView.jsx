@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -71,6 +71,49 @@ function getFeatureBounds(feature) {
   return bounds.isValid() ? bounds : null
 }
 
+function normalizeGeoJsonCoordinates(value) {
+  if (!Array.isArray(value)) return value
+  if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+    return [value[0], value[1]]
+  }
+  return value.map(normalizeGeoJsonCoordinates)
+}
+
+function normalizeGeoJson(data) {
+  if (!data) return data
+  if (data.type === 'FeatureCollection') {
+    return {
+      ...data,
+      features: data.features.map(normalizeGeoJson),
+    }
+  }
+  if (data.type === 'Feature') {
+    return {
+      ...data,
+      geometry: normalizeGeoJson(data.geometry),
+    }
+  }
+  if (data.type === 'GeometryCollection') {
+    return {
+      ...data,
+      geometries: data.geometries.map(normalizeGeoJson),
+    }
+  }
+  if (data.geometry) {
+    return {
+      ...data,
+      geometry: normalizeGeoJson(data.geometry),
+    }
+  }
+  if (data.coordinates) {
+    return {
+      ...data,
+      coordinates: normalizeGeoJsonCoordinates(data.coordinates),
+    }
+  }
+  return data
+}
+
 function ContextMask({ contextFeature, maskKey }) {
   if (!contextFeature?.geometry) return null
 
@@ -137,9 +180,9 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
       }),
     ])
       .then(([dapil, kecamatan, desa]) => {
-        setDapilGeoJson(dapil)
-        setKecamatanGeoJson(kecamatan)
-        setDesaGeoJson(desa)
+        setDapilGeoJson(normalizeGeoJson(dapil))
+        setKecamatanGeoJson(normalizeGeoJson(kecamatan))
+        setDesaGeoJson(normalizeGeoJson(desa))
         setLoading(false)
       })
       .catch((err) => {
