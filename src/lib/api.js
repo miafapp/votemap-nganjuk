@@ -38,7 +38,7 @@ export const api = {
   getDesa: (kecamatanId, pemiluId, dapilId) => apiFetch('/api/desa', { kecamatan_id: kecamatanId, pemilu_id: pemiluId, dapil_id: dapilId }),
   getTps: (pemiluId, desaId) => apiFetch('/api/tps', { pemilu_id: pemiluId, desa_id: desaId }),
   getWilayahDetail: (params) => apiFetch('/api/wilayah/detail', params),
-  getRekapWilayah: (pemiluId, level, wilayahId) => apiFetch('/api/rekap-wilayah', {
+  getRekapWilayah: (pemiluId, level, wilayahId) => apiFetch('/api/summary', {
     pemilu_id: pemiluId,
     level,
     wilayah_id: wilayahId,
