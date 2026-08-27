@@ -20,6 +20,7 @@ function App() {
   const [detail, setDetail] = useState(null)
   const [parties, setParties] = useState([])
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [loadingParties, setLoadingParties] = useState(false)
 
   const level = tpsId ? 'tps' : desaId ? 'desa' : kecamatanId ? 'kecamatan' : dapilId ? 'dapil' : null
   const levelId = tpsId || desaId || kecamatanId || dapilId
@@ -39,15 +40,14 @@ function App() {
       setDetail(null)
       setParties([])
       setLoadingDetail(false)
+      setLoadingParties(false)
       return
     }
 
     setLoadingDetail(true)
+    setLoadingParties(true)
     const apiLevel = level.toUpperCase()
 
-    // Summary dan daftar partai tidak saling bergantung.
-    // Endpoint suara pada level DAPIL dapat memproses banyak baris data,
-    // sehingga jangan menahan tampilan infografis sampai request tersebut selesai.
     const detailRequest = level === 'tps'
       ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: levelId })
       : api.getRekapWilayah(pemiluId, apiLevel, levelId)
@@ -59,9 +59,23 @@ function App() {
       .catch(() => setDetail(null))
       .finally(() => setLoadingDetail(false))
 
-    api.getSuara(level, levelId, pemiluId)
-      .then((partiesData) => setParties(partiesData))
-      .catch(() => setParties([]))
+    if (level === 'tps') {
+      api.getSuara(level, levelId, pemiluId)
+        .then((partiesData) => setParties(partiesData))
+        .catch(() => setParties([]))
+        .finally(() => setLoadingParties(false))
+    } else {
+      api.getRekapWilayahPartai(pemiluId, apiLevel, levelId)
+        .then((partiesData) => {
+          const normalized = (Array.isArray(partiesData) ? partiesData : []).map((party) => ({
+            ...party,
+            jumlah_suara: party.jumlah_suara ?? party.total_suara ?? 0,
+          }))
+          setParties(normalized)
+        })
+        .catch(() => setParties([]))
+        .finally(() => setLoadingParties(false))
+    }
   }, [level, levelId, pemiluId])
 
   const handleReset = () => {
@@ -125,7 +139,7 @@ function App() {
           <BottomTable pemiluId={pemiluId} kecamatanList={kecamatanList} />
         </div>
         <div className="flex flex-col gap-4">
-          <PartyTable parties={parties} loading={loadingDetail} />
+          <PartyTable parties={parties} loading={loadingParties} />
           <DetailPanel detail={detail} parties={parties} />
         </div>
       </div>
