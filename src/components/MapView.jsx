@@ -71,14 +71,35 @@ function getFeatureBounds(feature) {
   return bounds.isValid() ? bounds : null
 }
 
-// The source GeoJSON contains altitude as a third coordinate (lng, lat, 0).
-// Leaflet only needs lng/lat here. Normalize every coordinate recursively so
-// Polygon and MultiPolygon data cannot be interpreted as malformed LatLngs.
+function normalizeCoordinatePosition(value) {
+  if (!Array.isArray(value) || value.length < 2) return null
+  const lng = Number(value[0])
+  const lat = Number(value[1])
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null
+  return [lng, lat]
+}
+
 function normalizeGeoJsonCoordinates(value) {
   if (!Array.isArray(value)) return value
-  if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
-    return [value[0], value[1]]
+
+  const isScalarArray = value.every((item) => !Array.isArray(item))
+  if (isScalarArray) {
+    if (value.length === 2 || value.length === 3) {
+      return normalizeCoordinatePosition(value)
+    }
+
+    if (value.length > 3 && value.length % 2 === 0) {
+      const positions = []
+      for (let index = 0; index < value.length; index += 2) {
+        const position = normalizeCoordinatePosition([value[index], value[index + 1]])
+        if (position) positions.push(position)
+      }
+      return positions
+    }
+
+    return value
   }
+
   return value.map(normalizeGeoJsonCoordinates)
 }
 
@@ -101,16 +122,29 @@ function normalizeGeoJson(data) {
   return data
 }
 
+function getContextRings(geometry) {
+  if (!geometry) return []
+
+  if (geometry.type === 'Polygon') {
+    return geometry.coordinates.filter((ring) => Array.isArray(ring) && ring.length >= 3)
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates.flatMap((polygon) => (
+      Array.isArray(polygon)
+        ? polygon.filter((ring) => Array.isArray(ring) && ring.length >= 3)
+        : []
+    ))
+  }
+
+  return []
+}
+
 function ContextMask({ contextFeature, maskKey }) {
   if (!contextFeature?.geometry) return null
 
   const worldRing = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]
-  const geometry = contextFeature.geometry
-  const rings = geometry.type === 'Polygon'
-    ? geometry.coordinates
-    : geometry.type === 'MultiPolygon'
-      ? geometry.coordinates.flat()
-      : []
+  const rings = getContextRings(contextFeature.geometry)
 
   if (!rings.length) return null
 
