@@ -209,9 +209,15 @@ button, select, input { font: inherit; }
 }
 
 .tps-popup__route svg {
-  width: 19px;
-  height: 19px;
-  fill: currentColor;
+  display: none;
+}
+
+.tps-popup__route::before {
+  content: "";
+  display: block;
+  width: 20px;
+  height: 20px;
+  background: url('/icons/directions.svg') center / contain no-repeat;
 }
 
 @media (max-width: 640px) {
