@@ -68,13 +68,24 @@ function App() {
 
     setLoadingDetail(true)
     setLoadingParties(true)
-    const apiLevel = isSpecificRegion ? level.toUpperCase() : 'KABUPATEN'
-    const summaryRequest = api.getRekapWilayah(pemiluId, apiLevel, isSpecificRegion ? levelId : undefined)
 
-    summaryRequest
+    const apiLevel = isSpecificRegion ? level.toUpperCase() : 'KABUPATEN'
+    const detailRequest = level === 'tps'
+      ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: levelId })
+      : api.getRekapWilayah(pemiluId, apiLevel, isSpecificRegion ? levelId : undefined)
+
+    detailRequest
       .then((data) => setDetail(firstRecord(data)))
       .catch(() => setDetail(null))
       .finally(() => setLoadingDetail(false))
+
+    if (level === 'tps') {
+      api.getSuara(level, levelId, pemiluId)
+        .then((data) => setParties(normalizeParties(data)))
+        .catch(() => setParties([]))
+        .finally(() => setLoadingParties(false))
+      return
+    }
 
     api.getRekapWilayahPartai(pemiluId, apiLevel, isSpecificRegion ? levelId : undefined)
       .then((data) => {
