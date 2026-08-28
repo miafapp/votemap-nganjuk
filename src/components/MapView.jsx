@@ -97,13 +97,35 @@ function featureCollection(features) {
   return features?.length ? { type: 'FeatureCollection', features } : null
 }
 
-function ContextMask({ contextFeature, maskKey }) {
-  if (!contextFeature?.geometry) return null
+function geometryRings(geometry) {
+  if (!geometry) return []
+  if (geometry.type === 'Polygon') return geometry.coordinates || []
+  if (geometry.type === 'MultiPolygon') return (geometry.coordinates || []).flat()
+  return []
+}
+
+function ContextMask({ features, maskKey }) {
+  const list = Array.isArray(features) ? features.filter((feature) => feature?.geometry) : []
+  if (!list.length) return null
   const worldRing = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]
-  const geometry = contextFeature.geometry
-  const holes = geometry.type === 'Polygon' ? geometry.coordinates : geometry.type === 'MultiPolygon' ? geometry.coordinates.flat() : []
+  const holes = list.flatMap((feature) => geometryRings(feature.geometry))
   if (!holes.length) return null
-  return <GeoJSON key={`mask-${maskKey}`} data={{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [worldRing, ...holes] } }} style={{ fillColor: '#777777', color: '#777777', weight: 0, fillOpacity: 1, fillRule: 'evenodd' }} interactive={false} />
+  return (
+    <GeoJSON
+      key={`mask-${maskKey}`}
+      data={{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [worldRing, ...holes] } }}
+      style={{ fillColor: '#777777', color: '#777777', weight: 0, opacity: 1, fillOpacity: 1, fillRule: 'evenodd' }}
+      interactive={false}
+    />
+  )
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>\"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[char]))
+}
+
+function regionPopupHtml(name, levelLabel, id) {
+  return `<div class="region-popup"><div class="region-popup__info"><strong>${escapeHtml(name || 'Wilayah')}</strong><span>${escapeHtml(levelLabel)}</span></div><button type="button" class="region-popup__select" data-region-id="${id}" aria-label="Pilih ${escapeHtml(name)}" title="Pilih wilayah">Pilih</button></div>`
 }
 
 export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId, tpsRefreshToken = 0, onDapilClick, onKecamatanClick, onDesaClick, onTpsClick, onBack }) {
@@ -138,7 +160,6 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
   const selectedDapilFeature = dapilId ? dapilGeoJson?.features.find((feature) => getFeatureId(feature, 'dapil_id') === Number(dapilId)) : null
   const selectedKecamatanFeature = kecamatanId ? kecamatanGeoJson?.features.find((feature) => getFeatureId(feature, 'kecamatan_id') === Number(kecamatanId)) : null
   const selectedDesaFeature = desaId ? desaGeoJson?.features.find((feature) => getFeatureId(feature, 'desa_id') === Number(desaId)) : null
-  const contextFeature = selectedDesaFeature || selectedKecamatanFeature || selectedDapilFeature
 
   const visibleDapilGeoJson = mapLevel === 'kabupaten' ? dapilGeoJson : mapLevel === 'dapil' && selectedDapilFeature ? featureCollection([selectedDapilFeature]) : null
   const visibleKecamatanGeoJson = mapLevel === 'dapil' && dapilId
@@ -147,6 +168,14 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
   const visibleDesaGeoJson = mapLevel === 'kecamatan' && kecamatanId
     ? featureCollection((desaGeoJson?.features || []).filter((feature) => getFeatureId(feature, 'kecamatan_id') === Number(kecamatanId)))
     : (mapLevel === 'desa' || mapLevel === 'tps') && selectedDesaFeature ? featureCollection([selectedDesaFeature]) : null
+
+  const maskFeatures = mapLevel === 'kabupaten'
+    ? (dapilGeoJson?.features || [])
+    : mapLevel === 'dapil'
+      ? [selectedDapilFeature]
+      : mapLevel === 'kecamatan'
+        ? [selectedKecamatanFeature]
+        : [selectedDesaFeature]
 
   useEffect(() => {
     if (!dapilGeoJson || !kecamatanGeoJson || !desaGeoJson) return
@@ -159,15 +188,21 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
     setSelectedBounds(L.geoJSON(dapilGeoJson).getBounds())
   }, [tpsId, tpsMarkers, selectedDapilFeature, selectedKecamatanFeature, selectedDesaFeature, dapilGeoJson, kecamatanGeoJson, desaGeoJson])
 
-  const bindTooltip = (feature, layer, keys) => {
-    const name = getFeatureName(feature, keys)
-    if (name) layer.bindTooltip(String(name), { sticky: true, direction: 'top', opacity: 0.96, className: 'region-tooltip' })
-  }
-
-  const handleFeatureClick = (feature, level) => {
-    if (level === 'dapil') onDapilClick?.(getFeatureId(feature, 'dapil_id'))
-    if (level === 'kecamatan') onKecamatanClick?.(getFeatureId(feature, 'kecamatan_id'))
-    if (level === 'desa') onDesaClick?.(getFeatureId(feature, 'desa_id'))
+  const bindRegionPopup = (feature, layer, level, levelLabel, idKey, onSelect) => {
+    const name = getFeatureName(feature, level === 'dapil' ? ['nama', 'dapil'] : level === 'kecamatan' ? ['kecamatan', 'nama'] : ['desa', 'nama'])
+    const id = getFeatureId(feature, idKey)
+    if (!name) return
+    layer.bindPopup(regionPopupHtml(name, levelLabel, id), { className: 'region-popup-container', closeButton: true, autoPan: true, maxWidth: 280, minWidth: 190 })
+    layer.on('popupopen', (event) => {
+      const button = event.popup.getElement()?.querySelector('.region-popup__select')
+      if (!button) return
+      button.onclick = (clickEvent) => {
+        clickEvent.preventDefault()
+        clickEvent.stopPropagation()
+        onSelect?.(id)
+        event.popup._source?.closePopup()
+      }
+    })
   }
 
   const dapilStyle = (feature) => {
@@ -191,9 +226,9 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
     return { fillColor: DESA_COLORS[index], weight: selected ? 3 : 1.8, opacity: 1, color: '#111111', fillOpacity: selected ? 0.72 : 0.52 }
   }
 
-  const onEachDapil = (feature, layer) => { bindTooltip(feature, layer, ['nama', 'dapil']); layer.on({ click: () => handleFeatureClick(feature, 'dapil') }) }
-  const onEachKecamatan = (feature, layer) => { bindTooltip(feature, layer, ['kecamatan', 'nama']); layer.on({ click: () => handleFeatureClick(feature, 'kecamatan') }) }
-  const onEachDesa = (feature, layer) => { bindTooltip(feature, layer, ['desa', 'nama']); layer.on({ click: () => handleFeatureClick(feature, 'desa') }) }
+  const onEachDapil = (feature, layer) => bindRegionPopup(feature, layer, 'dapil', 'DAPIL', 'dapil_id', onDapilClick)
+  const onEachKecamatan = (feature, layer) => bindRegionPopup(feature, layer, 'kecamatan', 'Kecamatan', 'kecamatan_id', onKecamatanClick)
+  const onEachDesa = (feature, layer) => bindRegionPopup(feature, layer, 'desa', 'Desa / Kelurahan', 'desa_id', onDesaClick)
 
   return (
     <section className="border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
@@ -205,13 +240,28 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
               <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <MapController bounds={selectedBounds} level={mapLevel} />
               <MapControls level={mapLevel} onBack={onBack} />
-              {mapLevel !== 'kabupaten' && <ContextMask contextFeature={contextFeature} maskKey={`${mapLevel}-${dapilId || ''}-${kecamatanId || ''}-${desaId || ''}`} />}
+              <ContextMask features={maskFeatures} maskKey={`${mapLevel}-${dapilId || ''}-${kecamatanId || ''}-${desaId || ''}`} />
               {visibleDapilGeoJson && <GeoJSON key={`dapil-${dapilId || 'all'}`} data={visibleDapilGeoJson} style={dapilStyle} onEachFeature={onEachDapil} />}
               {visibleKecamatanGeoJson && <GeoJSON key={`kecamatan-${dapilId || ''}-${kecamatanId || ''}`} data={visibleKecamatanGeoJson} style={kecamatanStyle} onEachFeature={onEachKecamatan} />}
               {visibleDesaGeoJson && <GeoJSON key={`desa-${kecamatanId || ''}-${desaId || ''}`} data={visibleDesaGeoJson} style={desaStyle} onEachFeature={onEachDesa} />}
               {(mapLevel === 'desa' || mapLevel === 'tps') && tpsMarkers.map((tps) => {
                 const routeUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${tps.lat},${tps.lng}`)}`
-                return <Marker key={tps.id} position={[tps.lat, tps.lng]} icon={createTpsIcon(tps.nomor)} eventHandlers={{ click: () => onTpsClick?.(tps.id) }}><Popup><div className="text-xs min-w-[150px]"><strong>TPS {String(tps.nomor ?? '').padStart(3, '0')}</strong>{tps.alamat ? <><br />{tps.alamat}</> : null}<a href={routeUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center rounded bg-[#c4482a] px-2.5 py-1.5 text-white font-semibold no-underline hover:bg-[#b03d22]">Buka Rute Google Maps</a></div></Popup></Marker>
+                return (
+                  <Marker key={tps.id} position={[tps.lat, tps.lng]} icon={createTpsIcon(tps.nomor)} eventHandlers={{ click: () => onTpsClick?.(tps.id) }}>
+                    <Popup className="tps-popup-container" maxWidth={320} minWidth={250}>
+                      <div className="tps-popup">
+                        <div className="tps-popup__info">
+                          <strong>TPS {String(tps.nomor ?? '').padStart(3, '0')}</strong>
+                          {tps.alamat ? <span>{tps.alamat}</span> : null}
+                          {tps.desa_nama || tps.desa ? <span>{tps.desa_nama || tps.desa}</span> : null}
+                        </div>
+                        <a className="tps-popup__route" href={routeUrl} target="_blank" rel="noreferrer" aria-label="Buka Rute Google Maps" title="Buka Rute Google Maps">
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Zm-1 7.55v-4.1h2v4.1l-1 1.1-1-1.1Z" /></svg>
+                        </a>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )
               })}
             </MapContainer>
           </div>
