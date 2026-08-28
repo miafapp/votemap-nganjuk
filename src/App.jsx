@@ -5,6 +5,7 @@ import MapView from './components/MapView'
 import SummaryCards from './components/SummaryCards'
 import PartyTable from './components/PartyTable'
 import DetailPanel from './components/DetailPanel'
+import DashboardInfoPanel from './components/DashboardInfoPanel'
 import BottomTable from './components/BottomTable'
 import Footer from './components/Footer'
 import { api } from './lib/api'
@@ -22,6 +23,11 @@ function normalizeParties(parties) {
   }))
 }
 
+function firstRecord(data) {
+  if (Array.isArray(data)) return data[0] || null
+  return data || null
+}
+
 function App() {
   const [pemiluId, setPemiluId] = useState(null)
   const [dapilId, setDapilId] = useState(null)
@@ -37,6 +43,7 @@ function App() {
 
   const level = tpsId ? 'tps' : desaId ? 'desa' : kecamatanId ? 'kecamatan' : dapilId ? 'dapil' : null
   const levelId = tpsId || desaId || kecamatanId || dapilId
+  const isSpecificRegion = Boolean(level)
 
   const bumpRefresh = (name) => {
     setRefreshTokens((current) => ({ ...current, [name]: current[name] + 1 }))
@@ -51,7 +58,7 @@ function App() {
   }, [pemiluId, dapilId, refreshTokens.kecamatan])
 
   useEffect(() => {
-    if (!pemiluId || !level) {
+    if (!pemiluId) {
       setDetail(null)
       setParties([])
       setLoadingDetail(false)
@@ -61,13 +68,14 @@ function App() {
 
     setLoadingDetail(true)
     setLoadingParties(true)
-    const apiLevel = level.toUpperCase()
+
+    const apiLevel = isSpecificRegion ? level.toUpperCase() : 'KABUPATEN'
     const detailRequest = level === 'tps'
       ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: levelId })
-      : api.getRekapWilayah(pemiluId, apiLevel, levelId)
+      : api.getRekapWilayah(pemiluId, apiLevel, isSpecificRegion ? levelId : undefined)
 
     detailRequest
-      .then((data) => setDetail(Array.isArray(data) ? data[0] : data))
+      .then((data) => setDetail(firstRecord(data)))
       .catch(() => setDetail(null))
       .finally(() => setLoadingDetail(false))
 
@@ -76,20 +84,21 @@ function App() {
         .then((data) => setParties(normalizeParties(data)))
         .catch(() => setParties([]))
         .finally(() => setLoadingParties(false))
-    } else {
-      api.getRekapWilayahPartai(pemiluId, apiLevel, levelId)
-        .then((data) => {
-          const normalized = normalizeParties(data)
-          if (normalized.length > 0) {
-            setParties(normalized)
-            return null
-          }
-          return api.getSuara(level, levelId, pemiluId).then((fallback) => setParties(normalizeParties(fallback)))
-        })
-        .catch(() => setParties([]))
-        .finally(() => setLoadingParties(false))
+      return
     }
-  }, [level, levelId, pemiluId])
+
+    api.getRekapWilayahPartai(pemiluId, apiLevel, isSpecificRegion ? levelId : undefined)
+      .then((data) => {
+        const normalized = normalizeParties(data)
+        if (normalized.length > 0 || !isSpecificRegion) {
+          setParties(normalized)
+          return null
+        }
+        return api.getSuara(level, levelId, pemiluId).then((fallback) => setParties(normalizeParties(fallback)))
+      })
+      .catch(() => setParties([]))
+      .finally(() => setLoadingParties(false))
+  }, [level, levelId, pemiluId, isSpecificRegion])
 
   const resetRegion = () => {
     setDapilId(null)
@@ -164,6 +173,8 @@ function App() {
     if (dapilId) resetRegion()
   }
 
+  const lastUpdated = detail?.updated_at || detail?.last_updated_at || detail?.updatedAt || null
+
   return (
     <main className="max-w-[1440px] mx-auto min-h-screen px-6 py-6 text-[#332e29] bg-[radial-gradient(circle_at_92%_8%,#fff9e9_0,transparent_25%),#fbf7f0]">
       <Header
@@ -212,7 +223,8 @@ function App() {
         </div>
         <div className="flex flex-col gap-4">
           <PartyTable parties={parties} loading={loadingParties} />
-          <DetailPanel detail={detail} parties={parties} />
+          <DetailPanel detail={isSpecificRegion ? detail : null} parties={parties} />
+          <DashboardInfoPanel lastUpdated={lastUpdated} />
         </div>
       </div>
       <Footer />
