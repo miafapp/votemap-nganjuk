@@ -157,8 +157,21 @@ button, select, input { font: inherit; }
   outline-offset: 2px;
 }
 
+.tps-popup-container {
+  left: 50% !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  transform: translate3d(-50%, -50%, 0) !important;
+}
+
 .tps-popup-container .leaflet-popup-content {
   margin: 10px 12px;
+}
+
+.tps-popup-container .leaflet-popup-tip-container {
+  display: none;
 }
 
 .tps-popup {
