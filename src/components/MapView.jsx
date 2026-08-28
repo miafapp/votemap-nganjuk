@@ -256,7 +256,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
                 const routeUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${tps.lat},${tps.lng}`)}`
                 return (
                   <Marker key={tps.id} position={[tps.lat, tps.lng]} icon={createTpsIcon(tps.nomor)} eventHandlers={{ click: () => onTpsClick?.(tps.id) }}>
-                    <Popup className="tps-popup-container" maxWidth={320} minWidth={250}>
+                    <Popup className="tps-popup-container" maxWidth={320} minWidth={250} autoPan={false}>
                       <div className="tps-popup">
                         <div className="tps-popup__info">
                           <strong>TPS {String(tps.nomor ?? '').padStart(3, '0')}</strong>
@@ -264,7 +264,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
                           {tps.desa_nama || tps.desa ? <span>{tps.desa_nama || tps.desa}</span> : null}
                         </div>
                         <a className="tps-popup__route" href={routeUrl} target="_blank" rel="noreferrer" aria-label="Buka Rute Google Maps" title="Buka Rute Google Maps">
-                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Zm-1 7.55v-4.1h2v4.1l-1 1.1-1-1.1Z" /></svg>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2h4A2.5 2.5 0 0 1 14 4.5V7h2.5A2.5 2.5 0 0 1 19 9.5v9A2.5 2.5 0 0 1 16.5 21H7.5A2.5 2.5 0 0 1 5 18.5v-14ZM7.5 4a.5.5 0 0 0-.5.5V7h5V4.5a.5.5 0 0 0-.5-.5h-4Zm7 5H7.5a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5H14.5v2h-2V9h2Z" /></svg>
                         </a>
                       </div>
                     </Popup>
