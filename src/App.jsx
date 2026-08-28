@@ -19,13 +19,47 @@ function normalizeParties(parties) {
     ...party,
     kode_partai: party.kode_partai || PARTY_CODES[party.singkatan] || party.singkatan || '',
     nama_partai: party.nama_partai || party.singkatan || '',
-    jumlah_suara: party.jumlah_suara ?? party.total_suara ?? 0,
+    jumlah_suara: Number(party.jumlah_suara ?? party.total_suara ?? 0),
   }))
 }
 
 function firstRecord(data) {
   if (Array.isArray(data)) return data[0] || null
   return data || null
+}
+
+function latestUpdatedAt(records) {
+  return (Array.isArray(records) ? records : [])
+    .map((record) => record?.updated_at || record?.last_updated_at || record?.updatedAt)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null
+}
+
+function aggregateKabupaten(records) {
+  const rows = Array.isArray(records) ? records : []
+  const direct = rows.find((row) => String(row?.level || '').toUpperCase() === 'KABUPATEN')
+  if (direct) return direct
+
+  const source = rows.filter((row) => String(row?.level || '').toUpperCase() === 'KECAMATAN')
+  const fallbackSource = source.length
+    ? source
+    : rows.filter((row) => String(row?.level || '').toUpperCase() === 'DAPIL')
+
+  if (!fallbackSource.length) return null
+
+  return {
+    level: 'KABUPATEN',
+    wilayah_id: null,
+    jumlah_tps: fallbackSource.reduce((sum, row) => sum + Number(row?.jumlah_tps || 0), 0),
+    jumlah_tps_terisi: fallbackSource.reduce((sum, row) => sum + Number(row?.jumlah_tps_terisi || 0), 0),
+    jumlah_desa: fallbackSource.reduce((sum, row) => sum + Number(row?.jumlah_desa || 0), 0),
+    jumlah_kecamatan: source.length || fallbackSource.reduce((sum, row) => sum + Number(row?.jumlah_kecamatan || 0), 0),
+    dpt: fallbackSource.reduce((sum, row) => sum + Number(row?.dpt || 0), 0),
+    pengguna_hak_pilih: fallbackSource.reduce((sum, row) => sum + Number(row?.pengguna_hak_pilih || 0), 0),
+    suara_sah: fallbackSource.reduce((sum, row) => sum + Number(row?.suara_sah || 0), 0),
+    suara_tidak_sah: fallbackSource.reduce((sum, row) => sum + Number(row?.suara_tidak_sah || 0), 0),
+    updated_at: latestUpdatedAt(fallbackSource),
+  }
 }
 
 function App() {
@@ -37,6 +71,7 @@ function App() {
   const [kecamatanList, setKecamatanList] = useState([])
   const [detail, setDetail] = useState(null)
   const [parties, setParties] = useState([])
+  const [lastUpdated, setLastUpdated] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [loadingParties, setLoadingParties] = useState(false)
   const [refreshTokens, setRefreshTokens] = useState({ dapil: 0, kecamatan: 0, desa: 0, tps: 0 })
@@ -61,43 +96,70 @@ function App() {
     if (!pemiluId) {
       setDetail(null)
       setParties([])
+      setLastUpdated(null)
       setLoadingDetail(false)
       setLoadingParties(false)
-      return
+      return undefined
     }
 
+    let cancelled = false
     setLoadingDetail(true)
     setLoadingParties(true)
+    setLastUpdated(null)
 
-    const apiLevel = isSpecificRegion ? level.toUpperCase() : 'KABUPATEN'
-    const detailRequest = level === 'tps'
-      ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: levelId })
-      : api.getRekapWilayah(pemiluId, apiLevel, isSpecificRegion ? levelId : undefined)
+    const loadDashboard = async () => {
+      if (level === 'tps') {
+        const [detailData, partyData] = await Promise.all([
+          api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: levelId }),
+          api.getSuara(level, levelId, pemiluId),
+        ])
+        if (cancelled) return
+        const tpsDetail = firstRecord(detailData)
+        setDetail(tpsDetail)
+        setParties(normalizeParties(partyData))
+        setLastUpdated(tpsDetail?.updated_at || tpsDetail?.last_updated_at || tpsDetail?.updatedAt || null)
+        return
+      }
 
-    detailRequest
-      .then((data) => setDetail(firstRecord(data)))
-      .catch(() => setDetail(null))
-      .finally(() => setLoadingDetail(false))
+      if (isSpecificRegion) {
+        const apiLevel = level.toUpperCase()
+        const [summaryData, partyData] = await Promise.all([
+          api.getRekapWilayah(pemiluId, apiLevel, levelId),
+          api.getRekapWilayahPartai(pemiluId, apiLevel, levelId).catch(() => api.getSuara(level, levelId, pemiluId)),
+        ])
+        if (cancelled) return
+        const regionDetail = firstRecord(summaryData)
+        setDetail(regionDetail)
+        setParties(normalizeParties(partyData))
+        setLastUpdated(regionDetail?.updated_at || regionDetail?.last_updated_at || regionDetail?.updatedAt || null)
+        return
+      }
 
-    if (level === 'tps') {
-      api.getSuara(level, levelId, pemiluId)
-        .then((data) => setParties(normalizeParties(data)))
-        .catch(() => setParties([]))
-        .finally(() => setLoadingParties(false))
-      return
+      const [summaryRows, partyRows] = await Promise.all([
+        api.getRekapWilayah(pemiluId),
+        api.getSuaraKabupaten(pemiluId),
+      ])
+      if (cancelled) return
+      const rows = Array.isArray(summaryRows) ? summaryRows : []
+      setDetail(aggregateKabupaten(rows))
+      setParties(normalizeParties(partyRows))
+      setLastUpdated(latestUpdatedAt(rows))
     }
 
-    api.getRekapWilayahPartai(pemiluId, apiLevel, isSpecificRegion ? levelId : undefined)
-      .then((data) => {
-        const normalized = normalizeParties(data)
-        if (normalized.length > 0 || !isSpecificRegion) {
-          setParties(normalized)
-          return null
-        }
-        return api.getSuara(level, levelId, pemiluId).then((fallback) => setParties(normalizeParties(fallback)))
+    loadDashboard()
+      .catch(() => {
+        if (cancelled) return
+        setDetail(null)
+        setParties([])
+        setLastUpdated(null)
       })
-      .catch(() => setParties([]))
-      .finally(() => setLoadingParties(false))
+      .finally(() => {
+        if (cancelled) return
+        setLoadingDetail(false)
+        setLoadingParties(false)
+      })
+
+    return () => { cancelled = true }
   }, [level, levelId, pemiluId, isSpecificRegion])
 
   const resetRegion = () => {
@@ -173,29 +235,27 @@ function App() {
     if (dapilId) resetRegion()
   }
 
-  const lastUpdated = detail?.updated_at || detail?.last_updated_at || detail?.updatedAt || null
-
   return (
     <main className="max-w-[1440px] mx-auto min-h-screen px-6 py-6 text-[#332e29] bg-[radial-gradient(circle_at_92%_8%,#fff9e9_0,transparent_25%),#fbf7f0]">
       <Header
         pemiluId={pemiluId}
         onPemiluChange={handlePemiluChange}
-        dapilId={dapilId}
-        onDapilChange={handleDapilChange}
-        refreshToken={refreshTokens.dapil}
-        onReloadDapil={handleReloadDapil}
+        lastUpdated={lastUpdated}
       />
       <FilterBar
         pemiluId={pemiluId}
         dapilId={dapilId}
         kecamatanId={kecamatanId}
         desaId={desaId}
+        onDapilChange={handleDapilChange}
         onKecamatanChange={handleKecamatanChange}
         onDesaChange={handleDesaChange}
         onTpsChange={setTpsId}
+        refreshDapilToken={refreshTokens.dapil}
         refreshKecamatanToken={refreshTokens.kecamatan}
         refreshDesaToken={refreshTokens.desa}
         refreshTpsToken={refreshTokens.tps}
+        onReloadDapil={handleReloadDapil}
         onReloadKecamatan={handleReloadKecamatan}
         onReloadDesa={handleReloadDesa}
         onReloadTps={handleReloadTps}
@@ -224,7 +284,7 @@ function App() {
         <div className="flex flex-col gap-4">
           <PartyTable parties={parties} loading={loadingParties} />
           <DetailPanel detail={isSpecificRegion ? detail : null} parties={parties} />
-          <DashboardInfoPanel lastUpdated={lastUpdated} />
+          <DashboardInfoPanel />
         </div>
       </div>
       <Footer />

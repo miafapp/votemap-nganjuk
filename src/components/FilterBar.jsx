@@ -9,36 +9,69 @@ function ReloadButton({ label, onClick, disabled }) {
   )
 }
 
-export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKecamatanChange, onDesaChange, onTpsChange, refreshKecamatanToken = 0, refreshDesaToken = 0, refreshTpsToken = 0, onReloadKecamatan, onReloadDesa, onReloadTps }) {
+function FilterField({ label, children }) {
+  return <label className="grid gap-[5px] font-bold text-xs min-w-0">{label}{children}</label>
+}
+
+export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onDapilChange, onKecamatanChange, onDesaChange, onTpsChange, refreshDapilToken = 0, refreshKecamatanToken = 0, refreshDesaToken = 0, refreshTpsToken = 0, onReloadDapil, onReloadKecamatan, onReloadDesa, onReloadTps }) {
+  const [dapilList, setDapilList] = useState([])
   const [kecamatanList, setKecamatanList] = useState([])
   const [desaList, setDesaList] = useState([])
   const [tpsList, setTpsList] = useState([])
+  const [loadingDapil, setLoadingDapil] = useState(false)
   const [loadingKecamatan, setLoadingKecamatan] = useState(false)
   const [loadingDesa, setLoadingDesa] = useState(false)
   const [loadingTps, setLoadingTps] = useState(false)
 
   useEffect(() => {
-    if (!pemiluId) { setKecamatanList([]); return }
+    if (!pemiluId) {
+      setDapilList([])
+      return
+    }
+    setLoadingDapil(true)
+    api.getDapil(pemiluId).then(setDapilList).catch(() => setDapilList([])).finally(() => setLoadingDapil(false))
+  }, [pemiluId, refreshDapilToken])
+
+  useEffect(() => {
+    if (!pemiluId) {
+      setKecamatanList([])
+      return
+    }
     setLoadingKecamatan(true)
     api.getKecamatan(pemiluId, dapilId).then(setKecamatanList).catch(() => setKecamatanList([])).finally(() => setLoadingKecamatan(false))
   }, [pemiluId, dapilId, refreshKecamatanToken])
 
   useEffect(() => {
-    if (!kecamatanId) { setDesaList([]); return }
+    if (!kecamatanId) {
+      setDesaList([])
+      return
+    }
     setLoadingDesa(true)
     api.getDesa(kecamatanId, pemiluId, dapilId).then(setDesaList).catch(() => setDesaList([])).finally(() => setLoadingDesa(false))
   }, [kecamatanId, pemiluId, dapilId, refreshDesaToken])
 
   useEffect(() => {
-    if (!desaId || !pemiluId) { setTpsList([]); return }
+    if (!desaId || !pemiluId) {
+      setTpsList([])
+      return
+    }
     setLoadingTps(true)
     api.getTps(pemiluId, desaId).then(setTpsList).catch(() => setTpsList([])).finally(() => setLoadingTps(false))
   }, [desaId, pemiluId, refreshTpsToken])
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.15fr] gap-5 items-end my-4 p-4 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.72)] shadow-sm">
-      <label className="grid gap-[5px] font-bold text-xs">
-        Pilih Kecamatan
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.15fr] gap-5 items-end my-4 p-4 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.72)] shadow-sm">
+      <FilterField label="Pilih DAPIL">
+        <div className="flex items-center gap-2">
+          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={dapilId || ''} disabled={!pemiluId || loadingDapil} onChange={(e) => onDapilChange(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">{loadingDapil ? 'Memuat...' : 'Semua DAPIL'}</option>
+            {dapilList.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
+          </select>
+          <ReloadButton label="Muat ulang DAPIL" onClick={onReloadDapil} disabled={!pemiluId || loadingDapil} />
+        </div>
+      </FilterField>
+
+      <FilterField label="Pilih Kecamatan">
         <div className="flex items-center gap-2">
           <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={kecamatanId || ''} disabled={!pemiluId || loadingKecamatan} onChange={(e) => onKecamatanChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingKecamatan ? 'Memuat...' : 'Semua Kecamatan'}</option>
@@ -46,10 +79,9 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
           </select>
           <ReloadButton label="Muat ulang Kecamatan" onClick={onReloadKecamatan} disabled={!pemiluId || loadingKecamatan} />
         </div>
-      </label>
+      </FilterField>
 
-      <label className="grid gap-[5px] font-bold text-xs">
-        Pilih Desa / Kelurahan
+      <FilterField label="Pilih Desa / Kelurahan">
         <div className="flex items-center gap-2">
           <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={desaId || ''} disabled={!kecamatanId || loadingDesa} onChange={(e) => onDesaChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingDesa ? 'Memuat...' : 'Semua Desa / Kelurahan'}</option>
@@ -57,10 +89,9 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
           </select>
           <ReloadButton label="Muat ulang Desa / Kelurahan" onClick={onReloadDesa} disabled={!kecamatanId || loadingDesa} />
         </div>
-      </label>
+      </FilterField>
 
-      <label className="grid gap-[5px] font-bold text-xs">
-        Pilih TPS
+      <FilterField label="Pilih TPS">
         <div className="flex items-center gap-2">
           <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value="" disabled={!desaId || loadingTps} onChange={(e) => onTpsChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingTps ? 'Memuat...' : 'Semua TPS'}</option>
@@ -68,7 +99,7 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
           </select>
           <ReloadButton label="Muat ulang TPS" onClick={onReloadTps} disabled={!desaId || loadingTps} />
         </div>
-      </label>
+      </FilterField>
     </section>
   )
 }

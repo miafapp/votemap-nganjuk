@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 
-export default function Header({ pemiluId, onPemiluChange, dapilId, onDapilChange, refreshToken = 0, onReloadDapil }) {
+function formatUpdatedAt(value) {
+  if (!value) return 'Belum tersedia'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+export default function Header({ pemiluId, onPemiluChange, lastUpdated }) {
   const [pemiluList, setPemiluList] = useState([])
-  const [dapilList, setDapilList] = useState([])
   const [loadingPemilu, setLoadingPemilu] = useState(false)
-  const [loadingDapil, setLoadingDapil] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -20,20 +28,8 @@ export default function Header({ pemiluId, onPemiluChange, dapilId, onDapilChang
       .finally(() => setLoadingPemilu(false))
   }, [])
 
-  useEffect(() => {
-    if (!pemiluId) {
-      setDapilList([])
-      return
-    }
-    setLoadingDapil(true)
-    api.getDapil(pemiluId)
-      .then((data) => setDapilList(data))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoadingDapil(false))
-  }, [pemiluId, refreshToken])
-
   return (
-    <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#d8c9b3] px-3">
+    <header className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-[#d8c9b3] px-3">
       <div className="flex items-center gap-4">
         <img src="/images/favicon.png" alt="VoteMap Nganjuk" className="w-14 h-14 object-contain" />
         <div>
@@ -42,7 +38,7 @@ export default function Header({ pemiluId, onPemiluChange, dapilId, onDapilChang
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 items-start sm:items-center w-full sm:w-auto">
+      <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-stretch sm:items-center w-full lg:w-auto">
         <div className="grid gap-[3px] px-4 py-[7px] min-w-[190px] w-full sm:w-auto">
           <span className="text-xs text-[#82776e]">Tahun Pemilihan Umum</span>
           <select className="text-[15px] border border-[#e4d9c7] rounded-md px-3 py-2 bg-[#fffdf8] text-[#332e29] cursor-pointer disabled:opacity-50" value={pemiluId || ''} disabled={loadingPemilu} onChange={(e) => onPemiluChange(e.target.value ? Number(e.target.value) : null)}>
@@ -51,15 +47,11 @@ export default function Header({ pemiluId, onPemiluChange, dapilId, onDapilChang
           </select>
         </div>
 
-        <div className="grid gap-[3px] px-4 py-[7px] min-w-[220px] border-l-2 border-[#bfa98e] w-full sm:w-auto">
-          <span className="text-xs text-[#82776e]">Pilih DAPIL</span>
-          <div className="flex items-center gap-2">
-            <select className="min-w-0 flex-1 text-[15px] border border-[#e4d9c7] rounded-md px-3 py-2 bg-[#fffdf8] text-[#332e29] cursor-pointer disabled:opacity-50" value={dapilId || ''} disabled={!pemiluId || loadingDapil} onChange={(e) => onDapilChange(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">{loadingDapil ? 'Memuat...' : 'Semua DAPIL'}</option>
-              {dapilList.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
-            </select>
-            <button type="button" title="Muat ulang DAPIL" aria-label="Muat ulang DAPIL" onClick={onReloadDapil} disabled={!pemiluId || loadingDapil} className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-md border-0 bg-[#c4482a] text-white shadow-[0_3px_0_#9f321d] hover:bg-[#b03d22] disabled:opacity-40 disabled:cursor-not-allowed">↻</button>
-          </div>
+        <div className="grid gap-[3px] px-4 py-[7px] min-w-[240px] border-l-2 border-[#bfa98e] w-full sm:w-auto">
+          <span className="text-xs text-[#82776e]">Status data terakhir diperbarui</span>
+          <strong className="text-[15px] font-semibold text-[#332e29] leading-10 whitespace-nowrap">
+            {formatUpdatedAt(lastUpdated)}
+          </strong>
         </div>
       </div>
 
