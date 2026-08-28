@@ -48,6 +48,7 @@ export const api = {
     level,
     wilayah_id: wilayahId,
   }),
+  getSuaraKabupaten: (pemiluId) => apiFetch('/api/suara', { pemilu_id: pemiluId }),
   getSuara: (level, id, pemiluId) => apiFetch(`/api/suara/${level}/${id}`, { pemilu_id: pemiluId }),
   getSuaraDetail: (level, id, pemiluId) => apiFetch(`/api/suara/${level}/${id}/detail`, { pemilu_id: pemiluId }),
   getGisTps: (desaId, pemiluId) => apiFetch('/api/gis/tps', { desa_id: desaId, pemilu_id: pemiluId }),
