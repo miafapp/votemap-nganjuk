@@ -3,13 +3,13 @@ import { api } from '../lib/api'
 
 function ReloadButton({ label, onClick, disabled }) {
   return (
-    <button type="button" title={label} aria-label={label} onClick={onClick} disabled={disabled} className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-md border border-[#e4d9c7] bg-[#fffdf8] text-[#c4482a] hover:bg-[#f8eee4] disabled:opacity-40 disabled:cursor-not-allowed">
+    <button type="button" title={label} aria-label={label} onClick={onClick} disabled={disabled} className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-md border-0 bg-[#c4482a] text-white shadow-[0_3px_0_#9f321d] hover:bg-[#b03d22] disabled:opacity-40 disabled:cursor-not-allowed">
       ↻
     </button>
   )
 }
 
-export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKecamatanChange, onDesaChange, onTpsChange, onReset, refreshToken = 0, onReloadKecamatan, onReloadDesa, onReloadTps }) {
+export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKecamatanChange, onDesaChange, onTpsChange, refreshKecamatanToken = 0, refreshDesaToken = 0, refreshTpsToken = 0, onReloadKecamatan, onReloadDesa, onReloadTps }) {
   const [kecamatanList, setKecamatanList] = useState([])
   const [desaList, setDesaList] = useState([])
   const [tpsList, setTpsList] = useState([])
@@ -21,22 +21,22 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
     if (!pemiluId) { setKecamatanList([]); return }
     setLoadingKecamatan(true)
     api.getKecamatan(pemiluId, dapilId).then(setKecamatanList).catch(() => setKecamatanList([])).finally(() => setLoadingKecamatan(false))
-  }, [pemiluId, dapilId, refreshToken])
+  }, [pemiluId, dapilId, refreshKecamatanToken])
 
   useEffect(() => {
     if (!kecamatanId) { setDesaList([]); return }
     setLoadingDesa(true)
     api.getDesa(kecamatanId, pemiluId, dapilId).then(setDesaList).catch(() => setDesaList([])).finally(() => setLoadingDesa(false))
-  }, [kecamatanId, pemiluId, dapilId, refreshToken])
+  }, [kecamatanId, pemiluId, dapilId, refreshDesaToken])
 
   useEffect(() => {
     if (!desaId || !pemiluId) { setTpsList([]); return }
     setLoadingTps(true)
     api.getTps(pemiluId, desaId).then(setTpsList).catch(() => setTpsList([])).finally(() => setLoadingTps(false))
-  }, [desaId, pemiluId, refreshToken])
+  }, [desaId, pemiluId, refreshTpsToken])
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.15fr_auto] gap-5 items-end my-4 p-4 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.72)] shadow-sm">
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.15fr] gap-5 items-end my-4 p-4 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.72)] shadow-sm">
       <label className="grid gap-[5px] font-bold text-xs">
         Pilih Kecamatan
         <div className="flex items-center gap-2">
@@ -69,8 +69,6 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onKe
           <ReloadButton label="Muat ulang TPS" onClick={onReloadTps} disabled={!desaId || loadingTps} />
         </div>
       </label>
-
-      <button type="button" title="Kembali ke Kabupaten" aria-label="Kembali ke Kabupaten" className="w-10 h-10 inline-flex items-center justify-center border-0 rounded-lg bg-[#c4482a] text-white font-bold cursor-pointer shadow-[0_3px_0_#9f321d] hover:bg-[#b03d22] transition-colors" onClick={onReset}>⌂</button>
     </section>
   )
 }
