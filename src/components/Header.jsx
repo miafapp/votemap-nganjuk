@@ -58,7 +58,7 @@ export default function Header({ pemiluId, onPemiluChange, dapilId, onDapilChang
               <option value="">{loadingDapil ? 'Memuat...' : 'Semua DAPIL'}</option>
               {dapilList.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
             </select>
-            <button type="button" title="Muat ulang DAPIL" aria-label="Muat ulang DAPIL" onClick={onReloadDapil} disabled={!pemiluId || loadingDapil} className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-md border border-[#e4d9c7] bg-[#fffdf8] text-[#c4482a] hover:bg-[#f8eee4] disabled:opacity-40 disabled:cursor-not-allowed" >↻</button>
+            <button type="button" title="Muat ulang DAPIL" aria-label="Muat ulang DAPIL" onClick={onReloadDapil} disabled={!pemiluId || loadingDapil} className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-md border-0 bg-[#c4482a] text-white shadow-[0_3px_0_#9f321d] hover:bg-[#b03d22] disabled:opacity-40 disabled:cursor-not-allowed">↻</button>
           </div>
         </div>
       </div>
