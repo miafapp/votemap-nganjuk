@@ -190,6 +190,10 @@ button, select, input { font: inherit; }
   overflow-wrap: anywhere;
 }
 
+.tps-popup__info span:nth-of-type(2) {
+  display: none;
+}
+
 .tps-popup__route {
   display: inline-flex;
   flex: 0 0 38px;
