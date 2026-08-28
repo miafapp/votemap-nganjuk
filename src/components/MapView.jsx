@@ -188,10 +188,18 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
     setSelectedBounds(L.geoJSON(dapilGeoJson).getBounds())
   }, [tpsId, tpsMarkers, selectedDapilFeature, selectedKecamatanFeature, selectedDesaFeature, dapilGeoJson, kecamatanGeoJson, desaGeoJson])
 
-  const bindRegionPopup = (feature, layer, level, levelLabel, idKey, onSelect) => {
+  const bindRegionInteraction = (feature, layer, level, levelLabel, idKey, onSelect) => {
     const name = getFeatureName(feature, level === 'dapil' ? ['nama', 'dapil'] : level === 'kecamatan' ? ['kecamatan', 'nama'] : ['desa', 'nama'])
     const id = getFeatureId(feature, idKey)
     if (!name) return
+
+    const supportsHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    if (supportsHover) {
+      layer.bindTooltip(String(name), { sticky: true, direction: 'top', opacity: 0.96, className: 'region-tooltip' })
+      layer.on('click', () => onSelect?.(id))
+      return
+    }
+
     layer.bindPopup(regionPopupHtml(name, levelLabel, id), { className: 'region-popup-container', closeButton: true, autoPan: true, maxWidth: 280, minWidth: 190 })
     layer.on('popupopen', (event) => {
       const button = event.popup.getElement()?.querySelector('.region-popup__select')
@@ -226,9 +234,9 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
     return { fillColor: DESA_COLORS[index], weight: selected ? 3 : 1.8, opacity: 1, color: '#111111', fillOpacity: selected ? 0.72 : 0.52 }
   }
 
-  const onEachDapil = (feature, layer) => bindRegionPopup(feature, layer, 'dapil', 'DAPIL', 'dapil_id', onDapilClick)
-  const onEachKecamatan = (feature, layer) => bindRegionPopup(feature, layer, 'kecamatan', 'Kecamatan', 'kecamatan_id', onKecamatanClick)
-  const onEachDesa = (feature, layer) => bindRegionPopup(feature, layer, 'desa', 'Desa / Kelurahan', 'desa_id', onDesaClick)
+  const onEachDapil = (feature, layer) => bindRegionInteraction(feature, layer, 'dapil', 'DAPIL', 'dapil_id', onDapilClick)
+  const onEachKecamatan = (feature, layer) => bindRegionInteraction(feature, layer, 'kecamatan', 'Kecamatan', 'kecamatan_id', onKecamatanClick)
+  const onEachDesa = (feature, layer) => bindRegionInteraction(feature, layer, 'desa', 'Desa / Kelurahan', 'desa_id', onDesaClick)
 
   return (
     <section className="border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
