@@ -28,6 +28,16 @@ function firstRecord(data) {
   return data || null
 }
 
+function updatedAtFromData(data) {
+  if (Array.isArray(data)) {
+    return data
+      .map((record) => record?.updated_at || record?.last_updated_at || record?.updatedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null
+  }
+  return data?.updated_at || data?.last_updated_at || data?.updatedAt || null
+}
+
 function latestUpdatedAt(records) {
   return (Array.isArray(records) ? records : [])
     .map((record) => record?.updated_at || record?.last_updated_at || record?.updatedAt)
@@ -105,7 +115,6 @@ function App() {
     let cancelled = false
     setLoadingDetail(true)
     setLoadingParties(true)
-    setLastUpdated(null)
 
     const loadDashboard = async () => {
       if (level === 'tps') {
@@ -115,9 +124,10 @@ function App() {
         ])
         if (cancelled) return
         const tpsDetail = firstRecord(detailData)
+        const tpsUpdatedAt = updatedAtFromData(detailData) || updatedAtFromData(partyData)
         setDetail(tpsDetail)
         setParties(normalizeParties(partyData))
-        setLastUpdated(tpsDetail?.updated_at || tpsDetail?.last_updated_at || tpsDetail?.updatedAt || null)
+        if (tpsUpdatedAt) setLastUpdated(tpsUpdatedAt)
         return
       }
 
@@ -129,9 +139,10 @@ function App() {
         ])
         if (cancelled) return
         const regionDetail = firstRecord(summaryData)
+        const regionUpdatedAt = updatedAtFromData(summaryData) || updatedAtFromData(partyData)
         setDetail(regionDetail)
         setParties(normalizeParties(partyData))
-        setLastUpdated(regionDetail?.updated_at || regionDetail?.last_updated_at || regionDetail?.updatedAt || null)
+        if (regionUpdatedAt) setLastUpdated(regionUpdatedAt)
         return
       }
 
@@ -143,7 +154,8 @@ function App() {
       const rows = Array.isArray(summaryRows) ? summaryRows : []
       setDetail(aggregateKabupaten(rows))
       setParties(normalizeParties(partyRows))
-      setLastUpdated(latestUpdatedAt(rows))
+      const kabupatenUpdatedAt = latestUpdatedAt(rows) || updatedAtFromData(partyRows)
+      if (kabupatenUpdatedAt) setLastUpdated(kabupatenUpdatedAt)
     }
 
     loadDashboard()
@@ -151,7 +163,6 @@ function App() {
         if (cancelled) return
         setDetail(null)
         setParties([])
-        setLastUpdated(null)
       })
       .finally(() => {
         if (cancelled) return
@@ -172,6 +183,7 @@ function App() {
   const handlePemiluChange = (id) => {
     setPemiluId(id)
     resetRegion()
+    setLastUpdated(null)
     setRefreshTokens({ dapil: 0, kecamatan: 0, desa: 0, tps: 0 })
   }
 
