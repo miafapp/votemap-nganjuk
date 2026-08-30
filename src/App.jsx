@@ -309,6 +309,9 @@ function App() {
             pemiluId={pemiluId}
             activeLevel={level || 'kabupaten'}
             activeId={levelId}
+            kecamatanList={kecamatanList}
+            dapilId={dapilId}
+            desaId={desaId}
             parties={parties}
             detail={detail}
             onSelectRegion={handleTableRegionSelect}

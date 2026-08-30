@@ -8,18 +8,11 @@ const PARTY_CODES = [
 ]
 
 const LEVEL_CONFIG = {
-  kabupaten: { childLevel: 'kecamatan', nameKey: 'kecamatan', nameLabel: 'Kecamatan', columns: ['desaCount', 'tpsCount'] },
-  dapil: { childLevel: 'kecamatan', nameKey: 'kecamatan', nameLabel: 'Kecamatan', columns: ['desaCount', 'tpsCount'] },
-  kecamatan: { childLevel: 'desa', nameKey: 'desa', nameLabel: 'Desa / Kelurahan', columns: ['tpsCount'] },
-  desa: { childLevel: 'tps', nameKey: 'tps', nameLabel: 'TPS', columns: [] },
-  tps: { childLevel: null, nameKey: 'tps', nameLabel: 'TPS', columns: [] },
-}
-
-function firstDefined(row, keys, fallback = 0) {
-  for (const key of keys.filter(Boolean)) {
-    if (row?.[key] !== undefined && row?.[key] !== null && row?.[key] !== '') return row[key]
-  }
-  return fallback
+  kabupaten: { childLevel: 'kecamatan', nameLabel: 'Kecamatan', columns: ['desaCount', 'tpsCount'] },
+  dapil: { childLevel: 'kecamatan', nameLabel: 'Kecamatan', columns: ['desaCount', 'tpsCount'] },
+  kecamatan: { childLevel: 'desa', nameLabel: 'Desa / Kelurahan', columns: ['tpsCount'] },
+  desa: { childLevel: 'tps', nameLabel: 'TPS', columns: [] },
+  tps: { childLevel: null, nameLabel: 'TPS', columns: [] },
 }
 
 function numberValue(value) {
@@ -27,38 +20,40 @@ function numberValue(value) {
   return Number.isFinite(number) ? number : 0
 }
 
+function firstDefined(record, keys, fallback = null) {
+  for (const key of keys) {
+    if (record?.[key] !== undefined && record?.[key] !== null && record?.[key] !== '') return record[key]
+  }
+  return fallback
+}
+
+function firstRecord(data) {
+  if (Array.isArray(data)) return data[0] || null
+  return data || null
+}
+
+function extractArray(data) {
+  if (Array.isArray(data)) return data
+  if (!data || typeof data !== 'object') return []
+  const value = data.rows || data.items || data.data || data.results
+  return Array.isArray(value) ? value : []
+}
+
 function normalizePartyCode(value) {
   return String(value || '').trim().toUpperCase().replace(/_/g, '-')
 }
 
-function normalizePartyList(parties) {
-  const source = Array.isArray(parties) ? parties : []
-  const byCode = new Map()
-
-  PARTY_CODES.forEach((code) => byCode.set(code, { kode_partai: code, nama_partai: code, jumlah_suara: 0 }))
-  source.forEach((party) => {
-    const code = normalizePartyCode(party?.kode_partai || party?.singkatan || party?.kode)
-    if (!code) return
-    byCode.set(code, {
-      ...party,
-      kode_partai: code,
-      nama_partai: party?.nama_partai || party?.nama || party?.singkatan || code,
-      jumlah_suara: numberValue(party?.jumlah_suara ?? party?.total_suara),
-    })
-  })
-
-  return PARTY_CODES.map((code) => byCode.get(code)).filter(Boolean)
-}
-
 function partyEntries(row) {
-  const candidates = [row?.partai, row?.parties, row?.suara_partai, row?.suaraPartai, row?.party_scores]
-  const nested = candidates.find((value) => value && typeof value === 'object')
+  const nested = [row?.partai, row?.parties, row?.suara_partai, row?.suaraPartai, row?.party_scores]
+    .find((value) => value && typeof value === 'object')
+
   if (Array.isArray(nested)) {
     return nested.map((party) => [
       normalizePartyCode(party?.kode_partai || party?.singkatan || party?.kode),
       numberValue(party?.jumlah_suara ?? party?.total_suara ?? party?.suara),
     ])
   }
+
   if (nested && typeof nested === 'object') {
     return Object.entries(nested).map(([code, value]) => [
       normalizePartyCode(code),
@@ -66,37 +61,47 @@ function partyEntries(row) {
     ])
   }
 
-  return PARTY_CODES.map((code) => {
-    const value = row?.[code] ?? row?.[code.toLowerCase()] ?? row?.[`suara_${code.toLowerCase()}`]
-    return [code, numberValue(value)]
-  }).filter(([, value]) => value !== 0)
+  return PARTY_CODES.map((code) => [
+    code,
+    numberValue(row?.[code] ?? row?.[code.toLowerCase()] ?? row?.[`suara_${code.toLowerCase()}`]),
+  ])
 }
 
 function getPartyScore(row, code) {
-  const match = partyEntries(row).find(([partyCode]) => partyCode === code)
-  return match ? match[1] : 0
+  return partyEntries(row).find(([partyCode]) => partyCode === code)?.[1] || 0
 }
 
-function normalizeRow(row, index, config) {
+function normalizeParties(parties) {
+  const source = Array.isArray(parties) ? parties : []
+  const byCode = new Map(source.map((party) => [
+    normalizePartyCode(party?.kode_partai || party?.singkatan || party?.kode),
+    party,
+  ]))
+
+  return PARTY_CODES.map((code) => ({
+    ...(byCode.get(code) || {}),
+    kode_partai: code,
+    nama_partai: byCode.get(code)?.nama_partai || byCode.get(code)?.singkatan || code,
+  }))
+}
+
+function normalizeRow(row, index, childLevel) {
+  const isTps = childLevel === 'tps'
   const id = firstDefined(row, [
-    `${config.childLevel}_id`,
-    config.childLevel === 'tps' ? 'tps_id' : null,
+    `${childLevel}_id`,
     'wilayah_id',
     'id',
   ], index + 1)
-  const name = firstDefined(row, [
-    `nama_${config.nameKey}`,
-    config.nameKey === 'kecamatan' ? 'nama' : null,
-    config.nameKey === 'desa' ? 'desa' : null,
-    config.nameKey === 'tps' ? 'nomor_tps' : null,
-    config.nameKey === 'tps' ? 'nomor' : null,
-    'nama_wilayah',
-  ], config.nameKey === 'tps' ? `TPS ${String(index + 1).padStart(3, '0')}` : '-')
+  const name = firstDefined(row, isTps
+    ? ['nomor_tps', 'nomor', 'nama_tps', 'nama_wilayah', 'nama']
+    : childLevel === 'desa'
+      ? ['nama_desa', 'desa', 'nama', 'nama_wilayah']
+      : ['nama_kecamatan', 'kecamatan', 'nama', 'nama_wilayah'], isTps ? `TPS ${String(index + 1).padStart(3, '0')}` : '-')
 
   return {
     raw: row,
     id,
-    name: config.nameKey === 'tps' && !String(name).toUpperCase().startsWith('TPS') ? `TPS ${name}` : name,
+    name: isTps && !String(name).toUpperCase().startsWith('TPS') ? `TPS ${name}` : name,
     desaCount: numberValue(firstDefined(row, ['jumlah_desa', 'jumlah_desa_kelurahan', 'jml_desa', 'jml_desa_kel'])),
     tpsCount: numberValue(firstDefined(row, ['jumlah_tps', 'jml_tps'])),
     dpt: numberValue(firstDefined(row, ['dpt', 'jumlah_dpt'])),
@@ -105,28 +110,72 @@ function normalizeRow(row, index, config) {
   }
 }
 
-function extractRows(payload) {
-  if (Array.isArray(payload)) return { rows: payload, total: payload.length }
-  if (!payload || typeof payload !== 'object') return { rows: [], total: 0 }
-  const rows = payload.rows || payload.items || payload.data || payload.results || []
-  return {
-    rows: Array.isArray(rows) ? rows : [],
-    total: numberValue(payload.total ?? payload.total_count ?? payload.totalRows ?? (Array.isArray(rows) ? rows.length : 0)),
+async function loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId }) {
+  if (activeLevel === 'kabupaten' || activeLevel === 'dapil') {
+    return kecamatanList.map((row) => ({ ...row, __level: 'kecamatan' }))
+  }
+
+  if (activeLevel === 'kecamatan') {
+    return (await api.getDesa(activeId, pemiluId, dapilId)).map((row) => ({ ...row, __level: 'desa' }))
+  }
+
+  if (activeLevel === 'desa') {
+    return (await api.getTps(pemiluId, desaId || activeId)).map((row) => ({ ...row, __level: 'tps' }))
+  }
+
+  return []
+}
+
+async function enrichRow(row, pemiluId, childLevel) {
+  const id = firstDefined(row, [`${childLevel}_id`, 'id', 'wilayah_id'])
+  if (!id) return normalizeRow(row, 0, childLevel)
+
+  try {
+    const [summaryData, partyData] = childLevel === 'tps'
+      ? await Promise.all([
+        api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: id }),
+        api.getSuara('tps', id, pemiluId),
+      ])
+      : await Promise.all([
+        api.getRekapWilayah(pemiluId, childLevel.toUpperCase(), id),
+        api.getSuara(childLevel, id, pemiluId),
+      ])
+
+    const summary = firstRecord(summaryData) || row
+    return {
+      ...normalizeRow({ ...row, ...summary }, 0, childLevel),
+      raw: { ...row, ...summary, partai: partyData },
+    }
+  } catch {
+    return normalizeRow(row, 0, childLevel)
   }
 }
 
-export default function BottomTable({ pemiluId, activeLevel, activeId, parties, detail, onSelectRegion }) {
+export default function BottomTable({
+  pemiluId,
+  activeLevel,
+  activeId,
+  kecamatanList = [],
+  dapilId,
+  desaId,
+  parties,
+  detail,
+  onSelectRegion,
+}) {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [rows, setRows] = useState([])
-  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
 
-  const config = LEVEL_CONFIG[activeLevel || 'kabupaten']
-  const partyColumns = useMemo(() => normalizePartyList(parties), [parties])
+  const config = LEVEL_CONFIG[activeLevel] || LEVEL_CONFIG.kabupaten
+  const partyColumns = useMemo(() => normalizeParties(parties), [parties])
+  const total = rows.length
   const totalPages = Math.max(1, Math.ceil(total / limit))
+  const displayRows = rows.slice((page - 1) * limit, page * limit)
+  const pageStart = total === 0 ? 0 : (page - 1) * limit + 1
+  const pageEnd = Math.min(page * limit, total)
 
   useEffect(() => {
     setIsTouchDevice(window.matchMedia?.('(pointer: coarse)').matches ?? false)
@@ -137,9 +186,8 @@ export default function BottomTable({ pemiluId, activeLevel, activeId, parties, 
   }, [activeLevel, activeId, pemiluId, limit])
 
   useEffect(() => {
-    if (!pemiluId || !activeLevel || activeLevel === 'tps') {
+    if (!pemiluId || activeLevel === 'tps') {
       setRows([])
-      setTotal(detail ? 1 : 0)
       setLoading(false)
       setError(null)
       return undefined
@@ -149,35 +197,28 @@ export default function BottomTable({ pemiluId, activeLevel, activeId, parties, 
     setLoading(true)
     setError(null)
 
-    api.getRekapWilayahPage(pemiluId, config.childLevel.toUpperCase(), activeId, page, limit)
-      .then((data) => {
+    loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId })
+      .then(async (sourceRows) => {
+        const enriched = await Promise.all(sourceRows.map((row, index) => enrichRow(row, pemiluId, row.__level || config.childLevel).then((value) => ({ ...value, _index: index }))))
         if (cancelled) return
-        const result = extractRows(data)
-        setRows(result.rows.map((row, index) => normalizeRow(row, index + ((page - 1) * limit), config)))
-        setTotal(result.total)
+        setRows(enriched)
       })
       .catch((err) => {
         if (cancelled) return
         setRows([])
-        setTotal(0)
-        setError(err.message || 'Gagal memuat tabel rekap wilayah')
+        setError(err.message || 'Gagal memuat data tabel rekap wilayah')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
 
     return () => { cancelled = true }
-  }, [pemiluId, activeLevel, activeId, page, limit, config.childLevel, detail])
-
-  const displayRows = activeLevel === 'tps' && detail ? [normalizeRow(detail, 0, config)] : rows
-  const pageStart = total === 0 ? 0 : ((page - 1) * limit) + 1
-  const pageEnd = Math.min(page * limit, total)
+  }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, config.childLevel])
 
   const selectRow = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
     const id = Number(row.id)
-    if (!Number.isFinite(id)) return
-    onSelectRegion?.(config.childLevel, id)
+    if (Number.isFinite(id)) onSelectRegion?.(config.childLevel, id)
   }
 
   const dataColumnCount = partyColumns.length + 5 + config.columns.length
@@ -190,7 +231,7 @@ export default function BottomTable({ pemiluId, activeLevel, activeId, parties, 
       </div>
       <div className="px-4 pb-3 text-xs text-[#82776e] flex justify-between items-center">
         <strong>(Kecamatan - Desa/Kelurahan - TPS)</strong>
-        <span>{activeLevel ? `Level ${activeLevel.toUpperCase()}` : 'Level KABUPATEN'}</span>
+        <span>Level {String(activeLevel || 'kabupaten').toUpperCase()}</span>
       </div>
 
       <div className="max-h-[520px] overflow-auto px-3 pb-3">
@@ -224,7 +265,7 @@ export default function BottomTable({ pemiluId, activeLevel, activeId, parties, 
               <tr><td colSpan={dataColumnCount} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">Tidak ada data rekap pada konteks ini.</td></tr>
             ) : (
               displayRows.map((row, index) => {
-                const rowNumber = activeLevel === 'tps' ? 1 : ((page - 1) * limit) + index + 1
+                const rowNumber = (page - 1) * limit + index + 1
                 return (
                   <tr
                     key={`${row.id}-${rowNumber}`}
@@ -263,9 +304,9 @@ export default function BottomTable({ pemiluId, activeLevel, activeId, parties, 
             </label>
           </div>
           <div className="flex items-center gap-1">
-            <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} className="px-3 py-1.5 border border-[#e4d9c7] rounded disabled:opacity-40">Sebelumnya</button>
-            <span className="px-2">{page} / {totalPages}</span>
-            <button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)} className="px-3 py-1.5 border border-[#e4d9c7] rounded disabled:opacity-40">Berikutnya</button>
+            <button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="px-2 py-1 border border-[#e4d9c7] rounded disabled:opacity-40">Sebelumnya</button>
+            <span className="px-2">Halaman {page} / {totalPages}</span>
+            <button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="px-2 py-1 border border-[#e4d9c7] rounded disabled:opacity-40">Berikutnya</button>
           </div>
         </div>
       )}
