@@ -205,20 +205,6 @@ function App() {
     setTpsId(null)
   }
 
-  const handleTableRegionSelect = (nextLevel, id) => {
-    if (nextLevel === 'kecamatan') {
-      handleKecamatanChange(id)
-      return
-    }
-    if (nextLevel === 'desa') {
-      handleDesaChange(id)
-      return
-    }
-    if (nextLevel === 'tps') {
-      setTpsId(id)
-    }
-  }
-
   const handleReloadDapil = () => {
     resetRegion()
     bumpRefresh('dapil')
@@ -287,9 +273,9 @@ function App() {
         onReloadTps={handleReloadTps}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(230px,0.58fr)] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 min-w-0">
+        <div className="flex flex-col gap-4 min-w-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(230px,0.58fr)] gap-4 min-w-0">
             <MapView
               pemiluId={pemiluId}
               dapilId={dapilId}
@@ -312,12 +298,9 @@ function App() {
             kecamatanList={kecamatanList}
             dapilId={dapilId}
             desaId={desaId}
-            parties={parties}
-            detail={detail}
-            onSelectRegion={handleTableRegionSelect}
           />
         </div>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 min-w-0">
           <PartyTable parties={parties} loading={loadingParties} />
           <DetailPanel detail={isSpecificRegion ? detail : null} parties={parties} />
           <DashboardInfoPanel />
