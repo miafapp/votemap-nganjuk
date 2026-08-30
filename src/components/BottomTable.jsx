@@ -1,18 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import { getPartyLogo } from '../lib/party-logos'
-
-const PARTY_CODES = [
-  'PKB', 'GERINDRA', 'PDI-P', 'GOLKAR', 'NASDEM', 'BURUH', 'GELORA', 'PKS', 'PKN',
-  'HANURA', 'GARUDA', 'PAN', 'PBB', 'DEMOKRAT', 'PSI', 'PERINDO', 'PPP', 'UMMAT',
-]
 
 const LEVEL_CONFIG = {
-  kabupaten: { childLevel: 'kecamatan', nameLabel: 'Kecamatan', columns: ['desaCount', 'tpsCount'] },
-  dapil: { childLevel: 'kecamatan', nameLabel: 'Kecamatan', columns: ['desaCount', 'tpsCount'] },
-  kecamatan: { childLevel: 'desa', nameLabel: 'Desa / Kelurahan', columns: ['tpsCount'] },
-  desa: { childLevel: 'tps', nameLabel: 'TPS', columns: [] },
-  tps: { childLevel: null, nameLabel: 'TPS', columns: [] },
+  kabupaten: { childLevel: 'dapil', nameLabel: 'Dapil', extraLabel: 'Jml Kecamatan', extraKey: 'kecamatanCount' },
+  dapil: { childLevel: 'kecamatan', nameLabel: 'Kecamatan', extraLabel: null, extraKey: null },
+  kecamatan: { childLevel: 'desa', nameLabel: 'Desa/Kelurahan', extraLabel: 'Jml TPS', extraKey: 'tpsCount' },
+  desa: { childLevel: 'tps', nameLabel: 'TPS', extraLabel: null, extraKey: null },
+  tps: { childLevel: null, nameLabel: 'TPS', extraLabel: null, extraKey: null },
 }
 
 function numberValue(value) {
@@ -27,16 +21,13 @@ function firstDefined(record, keys, fallback = null) {
   return fallback
 }
 
-function firstRecord(data) {
-  if (Array.isArray(data)) return data[0] || null
-  return data || null
-}
-
 function extractArray(data) {
   if (Array.isArray(data)) return data
   if (!data || typeof data !== 'object') return []
-  const value = data.rows || data.items || data.data || data.results
-  return Array.isArray(value) ? value : []
+  for (const key of ['rows', 'items', 'data', 'results']) {
+    if (Array.isArray(data[key])) return data[key]
+  }
+  return []
 }
 
 function normalizePartyCode(value) {
@@ -61,57 +52,75 @@ function partyEntries(row) {
     ])
   }
 
-  return PARTY_CODES.map((code) => [
-    code,
-    numberValue(row?.[code] ?? row?.[code.toLowerCase()] ?? row?.[`suara_${code.toLowerCase()}`]),
-  ])
+  return []
 }
 
-function getPartyScore(row, code) {
-  return partyEntries(row).find(([partyCode]) => partyCode === code)?.[1] || 0
-}
-
-function normalizeParties(parties) {
-  const source = Array.isArray(parties) ? parties : []
-  const byCode = new Map(source.map((party) => [
-    normalizePartyCode(party?.kode_partai || party?.singkatan || party?.kode),
-    party,
+function sumPartyVotes(row) {
+  const entries = partyEntries(row)
+  if (entries.length) return entries.reduce((sum, [, value]) => sum + value, 0)
+  return numberValue(firstDefined(row, [
+    'suara_seluruh_partai',
+    'total_suara_partai',
+    'jumlah_suara_partai',
+    'suara_partai',
+    'total_suara',
   ]))
-
-  return PARTY_CODES.map((code) => ({
-    ...(byCode.get(code) || {}),
-    kode_partai: code,
-    nama_partai: byCode.get(code)?.nama_partai || byCode.get(code)?.singkatan || code,
-  }))
 }
 
 function normalizeRow(row, index, childLevel) {
+  const id = firstDefined(row, [`${childLevel}_id`, 'wilayah_id', 'id'], index + 1)
   const isTps = childLevel === 'tps'
-  const id = firstDefined(row, [
-    `${childLevel}_id`,
-    'wilayah_id',
-    'id',
-  ], index + 1)
   const name = firstDefined(row, isTps
     ? ['nomor_tps', 'nomor', 'nama_tps', 'nama_wilayah', 'nama']
     : childLevel === 'desa'
       ? ['nama_desa', 'desa', 'nama', 'nama_wilayah']
-      : ['nama_kecamatan', 'kecamatan', 'nama', 'nama_wilayah'], isTps ? `TPS ${String(index + 1).padStart(3, '0')}` : '-')
+      : childLevel === 'dapil'
+        ? ['nama_dapil', 'dapil', 'nama', 'nama_wilayah']
+        : ['nama_kecamatan', 'kecamatan', 'nama', 'nama_wilayah'],
+  isTps ? `TPS ${String(index + 1).padStart(3, '0')}` : '-')
 
   return {
     raw: row,
     id,
     name: isTps && !String(name).toUpperCase().startsWith('TPS') ? `TPS ${name}` : name,
-    desaCount: numberValue(firstDefined(row, ['jumlah_desa', 'jumlah_desa_kelurahan', 'jml_desa', 'jml_desa_kel'])),
+    kecamatanCount: numberValue(firstDefined(row, ['jumlah_kecamatan', 'jml_kecamatan'])),
     tpsCount: numberValue(firstDefined(row, ['jumlah_tps', 'jml_tps'])),
     dpt: numberValue(firstDefined(row, ['dpt', 'jumlah_dpt'])),
+    suaraSeluruhPartai: sumPartyVotes(row),
     suaraSah: numberValue(firstDefined(row, ['suara_sah', 'jumlah_suara_sah'])),
     suaraTidakSah: numberValue(firstDefined(row, ['suara_tidak_sah', 'jumlah_suara_tidak_sah'])),
   }
 }
 
+async function enrichRow(row, pemiluId, childLevel) {
+  const id = firstDefined(row, [`${childLevel}_id`, 'wilayah_id', 'id'])
+  if (!id) return normalizeRow(row, 0, childLevel)
+
+  try {
+    const [summaryData, partyData] = childLevel === 'tps'
+      ? await Promise.all([
+        api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: id }),
+        api.getSuara('tps', id, pemiluId),
+      ])
+      : await Promise.all([
+        api.getRekapWilayah(pemiluId, childLevel.toUpperCase(), id),
+        api.getSuara(childLevel, id, pemiluId),
+      ])
+
+    const summary = extractArray(summaryData)[0] || summaryData || row
+    return normalizeRow({ ...row, ...summary, partai: partyData }, 0, childLevel)
+  } catch {
+    return normalizeRow(row, 0, childLevel)
+  }
+}
+
 async function loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId }) {
-  if (activeLevel === 'kabupaten' || activeLevel === 'dapil') {
+  if (activeLevel === 'kabupaten') {
+    const dapils = await api.getDapil(pemiluId)
+    return dapils.map((row) => ({ ...row, __level: 'dapil' }))
+  }
+
+  if (activeLevel === 'dapil') {
     return kecamatanList.map((row) => ({ ...row, __level: 'kecamatan' }))
   }
 
@@ -126,31 +135,6 @@ async function loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamat
   return []
 }
 
-async function enrichRow(row, pemiluId, childLevel) {
-  const id = firstDefined(row, [`${childLevel}_id`, 'id', 'wilayah_id'])
-  if (!id) return normalizeRow(row, 0, childLevel)
-
-  try {
-    const [summaryData, partyData] = childLevel === 'tps'
-      ? await Promise.all([
-        api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: id }),
-        api.getSuara('tps', id, pemiluId),
-      ])
-      : await Promise.all([
-        api.getRekapWilayah(pemiluId, childLevel.toUpperCase(), id),
-        api.getSuara(childLevel, id, pemiluId),
-      ])
-
-    const summary = firstRecord(summaryData) || row
-    return {
-      ...normalizeRow({ ...row, ...summary }, 0, childLevel),
-      raw: { ...row, ...summary, partai: partyData },
-    }
-  } catch {
-    return normalizeRow(row, 0, childLevel)
-  }
-}
-
 export default function BottomTable({
   pemiluId,
   activeLevel,
@@ -158,9 +142,6 @@ export default function BottomTable({
   kecamatanList = [],
   dapilId,
   desaId,
-  parties,
-  detail,
-  onSelectRegion,
 }) {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
@@ -170,7 +151,6 @@ export default function BottomTable({
   const [isTouchDevice, setIsTouchDevice] = useState(false)
 
   const config = LEVEL_CONFIG[activeLevel] || LEVEL_CONFIG.kabupaten
-  const partyColumns = useMemo(() => normalizeParties(parties), [parties])
   const total = rows.length
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const displayRows = rows.slice((page - 1) * limit, page * limit)
@@ -199,7 +179,10 @@ export default function BottomTable({
 
     loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId })
       .then(async (sourceRows) => {
-        const enriched = await Promise.all(sourceRows.map((row, index) => enrichRow(row, pemiluId, row.__level || config.childLevel).then((value) => ({ ...value, _index: index }))))
+        const enriched = await Promise.all(
+          sourceRows.map((row, index) => enrichRow(row, pemiluId, row.__level || config.childLevel)
+            .then((value) => ({ ...value, _index: index }))),
+        )
         if (cancelled) return
         setRows(enriched)
       })
@@ -215,16 +198,17 @@ export default function BottomTable({
     return () => { cancelled = true }
   }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, config.childLevel])
 
-  const selectRow = (row) => {
+  const openDetail = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
     const id = Number(row.id)
-    if (Number.isFinite(id)) onSelectRegion?.(config.childLevel, id)
+    if (!Number.isFinite(id)) return
+    window.location.assign(`/wilayah/${config.childLevel}/${id}`)
   }
 
-  const dataColumnCount = partyColumns.length + 5 + config.columns.length
+  const columnCount = config.extraLabel ? 8 : 7
 
   return (
-    <section className="border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
+    <section className="w-full min-w-0 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3">
         <span className="text-[#c4482a] text-xl">♟</span>
         <h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Data Perolehan Suara per Wilayah</h2>
@@ -234,60 +218,52 @@ export default function BottomTable({
         <span>Level {String(activeLevel || 'kabupaten').toUpperCase()}</span>
       </div>
 
-      <div className="max-h-[520px] overflow-auto px-3 pb-3">
-        <table className="min-w-max w-full border-collapse text-xs">
-          <thead className="sticky top-0 z-20">
-            <tr>
-              <th rowSpan={2} className="sticky left-0 z-30 text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">No</th>
-              <th rowSpan={2} className="sticky left-[43px] z-30 text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-left">{config.nameLabel}</th>
-              {config.columns.includes('desaCount') && <th rowSpan={2} className="text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">Jml Desa/Kel</th>}
-              {config.columns.includes('tpsCount') && <th rowSpan={2} className="text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">Jml TPS</th>}
-              <th rowSpan={2} className="text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">DPT</th>
-              <th colSpan={partyColumns.length} className="text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">Perolehan Suara Partai</th>
-              <th rowSpan={2} className="text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">Suara Sah</th>
-              <th rowSpan={2} className="text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">Suara Tdk Sah</th>
-            </tr>
-            <tr>
-              {partyColumns.map((party) => (
-                <th key={party.kode_partai} title={party.nama_partai} className="text-[#8d4838] bg-[#fff9ed] font-bold px-2 py-2 border border-[#ecdfcb] text-center min-w-[54px]">
-                  <img src={getPartyLogo(party.kode_partai)} alt={party.nama_partai} className="w-7 h-7 mx-auto object-contain" />
-                  <span className="block mt-1 text-[9px]">{party.kode_partai}</span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={dataColumnCount} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">Memuat rekap wilayah...</td></tr>
-            ) : error ? (
-              <tr><td colSpan={dataColumnCount} className="px-3 py-8 text-center text-red-600 border border-[#ecdfcb]">{error}</td></tr>
-            ) : displayRows.length === 0 ? (
-              <tr><td colSpan={dataColumnCount} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">Tidak ada data rekap pada konteks ini.</td></tr>
-            ) : (
-              displayRows.map((row, index) => {
-                const rowNumber = (page - 1) * limit + index + 1
-                return (
-                  <tr
-                    key={`${row.id}-${rowNumber}`}
-                    className={config.childLevel ? 'cursor-pointer hover:bg-[#fff9ed]' : ''}
-                    onClick={isTouchDevice ? () => selectRow(row) : undefined}
-                    onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined}
-                    title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}
-                  >
-                    <td className="sticky left-0 z-10 bg-white px-3 py-2 border border-[#ecdfcb] text-center">{rowNumber}</td>
-                    <td className="sticky left-[43px] z-10 bg-white px-3 py-2 border border-[#ecdfcb] font-bold">{row.name}</td>
-                    {config.columns.includes('desaCount') && <td className="px-3 py-2 border border-[#ecdfcb] text-center">{row.desaCount.toLocaleString('id-ID')}</td>}
-                    {config.columns.includes('tpsCount') && <td className="px-3 py-2 border border-[#ecdfcb] text-center">{row.tpsCount.toLocaleString('id-ID')}</td>}
-                    <td className="px-3 py-2 border border-[#ecdfcb] text-right">{row.dpt.toLocaleString('id-ID')}</td>
-                    {partyColumns.map((party) => <td key={party.kode_partai} className="px-3 py-2 border border-[#ecdfcb] text-right">{getPartyScore(row.raw, party.kode_partai).toLocaleString('id-ID')}</td>)}
-                    <td className="px-3 py-2 border border-[#ecdfcb] text-right">{row.suaraSah.toLocaleString('id-ID')}</td>
-                    <td className="px-3 py-2 border border-[#ecdfcb] text-right">{row.suaraTidakSah.toLocaleString('id-ID')}</td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
+      <div className="px-3 pb-3 min-w-0">
+        <div className="regional-table-scroll w-full max-w-full max-h-[520px] overflow-auto border border-[#ecdfcb]">
+          <table className="regional-results-table w-max min-w-full border-collapse text-xs">
+            <thead className="sticky top-0 z-20">
+              <tr>
+                <th className="sticky left-0 z-30 w-[48px] min-w-[48px] text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">No.</th>
+                <th className="sticky left-[48px] z-30 min-w-[170px] text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-left">{config.nameLabel}</th>
+                {config.extraLabel && <th className="min-w-[120px] text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">{config.extraLabel}</th>}
+                <th className="min-w-[105px] text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">DPT</th>
+                <th className="min-w-[150px] text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">Suara Seluruh Partai</th>
+                <th className="min-w-[105px] text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">Suara Sah</th>
+                <th className="min-w-[115px] text-[#8d4838] bg-[#fff9ed] font-bold whitespace-nowrap px-3 py-2 border border-[#ecdfcb] text-center">Suara Tdk Sah</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">Memuat rekap wilayah...</td></tr>
+              ) : error ? (
+                <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-red-600 border border-[#ecdfcb]">{error}</td></tr>
+              ) : displayRows.length === 0 ? (
+                <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">Tidak ada data rekap pada konteks ini.</td></tr>
+              ) : (
+                displayRows.map((row, index) => {
+                  const rowNumber = (page - 1) * limit + index + 1
+                  return (
+                    <tr
+                      key={`${row.id}-${rowNumber}`}
+                      className={config.childLevel ? 'cursor-pointer hover:bg-[#fff9ed]' : ''}
+                      onClick={isTouchDevice ? () => openDetail(row) : undefined}
+                      onDoubleClick={!isTouchDevice ? () => openDetail(row) : undefined}
+                      title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka halaman detail' : 'Klik dua kali untuk membuka halaman detail') : undefined}
+                    >
+                      <td className="sticky left-0 z-10 w-[48px] min-w-[48px] bg-white px-3 py-2 border border-[#ecdfcb] text-center">{rowNumber}</td>
+                      <td className="sticky left-[48px] z-10 min-w-[170px] bg-white px-3 py-2 border border-[#ecdfcb] font-bold">{row.name}</td>
+                      {config.extraKey && <td className="px-3 py-2 border border-[#ecdfcb] text-center">{row[config.extraKey].toLocaleString('id-ID')}</td>}
+                      <td className="px-3 py-2 border border-[#ecdfcb] text-right">{row.dpt.toLocaleString('id-ID')}</td>
+                      <td className="px-3 py-2 border border-[#ecdfcb] text-right">{row.suaraSeluruhPartai.toLocaleString('id-ID')}</td>
+                      <td className="px-3 py-2 border border-[#ecdfcb] text-right">{row.suaraSah.toLocaleString('id-ID')}</td>
+                      <td className="px-3 py-2 border border-[#ecdfcb] text-right">{row.suaraTidakSah.toLocaleString('id-ID')}</td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {activeLevel !== 'tps' && (
