@@ -205,6 +205,20 @@ function App() {
     setTpsId(null)
   }
 
+  const handleTableRegionSelect = (nextLevel, id) => {
+    if (nextLevel === 'kecamatan') {
+      handleKecamatanChange(id)
+      return
+    }
+    if (nextLevel === 'desa') {
+      handleDesaChange(id)
+      return
+    }
+    if (nextLevel === 'tps') {
+      setTpsId(id)
+    }
+  }
+
   const handleReloadDapil = () => {
     resetRegion()
     bumpRefresh('dapil')
@@ -291,7 +305,14 @@ function App() {
             />
             <SummaryCards detail={detail} loading={loadingDetail} />
           </div>
-          <BottomTable pemiluId={pemiluId} kecamatanList={kecamatanList} />
+          <BottomTable
+            pemiluId={pemiluId}
+            activeLevel={level || 'kabupaten'}
+            activeId={levelId}
+            parties={parties}
+            detail={detail}
+            onSelectRegion={handleTableRegionSelect}
+          />
         </div>
         <div className="flex flex-col gap-4">
           <PartyTable parties={parties} loading={loadingParties} />

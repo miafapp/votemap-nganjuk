@@ -48,6 +48,13 @@ export const api = {
     level,
     wilayah_id: wilayahId,
   }),
+  getRekapWilayahPage: (pemiluId, level, parentId, page = 1, limit = 10) => apiFetch('/api/rekap-wilayah', {
+    pemilu_id: pemiluId,
+    level,
+    parent_id: parentId,
+    page,
+    limit,
+  }),
   getSuaraKabupaten: (pemiluId) => apiFetch('/api/suara', { pemilu_id: pemiluId }),
   getSuara: (level, id, pemiluId) => apiFetch(`/api/suara/${level}/${id}`, { pemilu_id: pemiluId }),
   getSuaraDetail: (level, id, pemiluId) => apiFetch(`/api/suara/${level}/${id}/detail`, { pemilu_id: pemiluId }),
