@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -14,13 +14,17 @@ const MAP_PADDING = [10, 10]
 
 function MapController({ bounds, level, selectedTps }) {
   const map = useMap()
+
+  useLayoutEffect(() => {
+    if (!selectedTps) return
+    const center = L.latLng(selectedTps.lat, selectedTps.lng)
+    map.stop()
+    map.invalidateSize({ pan: false })
+    map.setView(center, 18, { animate: false })
+  }, [selectedTps, map])
+
   useEffect(() => {
-    if (selectedTps) {
-      const center = L.latLng(selectedTps.lat, selectedTps.lng)
-      map.invalidateSize({ pan: false })
-      map.setView(center, 18, { animate: false })
-      return
-    }
+    if (selectedTps) return
     if (!bounds || !bounds.isValid?.()) {
       map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM)
       return
