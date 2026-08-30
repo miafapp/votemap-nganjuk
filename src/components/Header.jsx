@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 
-const FALLBACK_PEMILU_LIST = [
-  { id: 1, tahun: 2024 },
-]
-
 function formatUpdatedAt(value) {
   if (!value) return 'Belum tersedia'
   const date = new Date(value)
@@ -21,28 +17,15 @@ export default function Header({ pemiluId, onPemiluChange, lastUpdated }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    let cancelled = false
     setLoadingPemilu(true)
     setError(null)
-
     api.getPemilu()
       .then((data) => {
-        if (cancelled) return
-        const list = Array.isArray(data) && data.length > 0 ? data : FALLBACK_PEMILU_LIST
-        setPemiluList(list)
-        if (list.length > 0 && !pemiluId) onPemiluChange(list[0].id)
+        setPemiluList(data)
+        if (data.length > 0 && !pemiluId) onPemiluChange(data[0].id)
       })
-      .catch(() => {
-        if (cancelled) return
-        setPemiluList(FALLBACK_PEMILU_LIST)
-        if (!pemiluId) onPemiluChange(FALLBACK_PEMILU_LIST[0].id)
-        setError(null)
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingPemilu(false)
-      })
-
-    return () => { cancelled = true }
+      .catch((err) => setError(err.message))
+      .finally(() => setLoadingPemilu(false))
   }, [])
 
   return (
@@ -71,6 +54,8 @@ export default function Header({ pemiluId, onPemiluChange, lastUpdated }) {
           </strong>
         </div>
       </div>
+
+      {error && <div className="w-full mt-2 px-4 py-2 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm">{error}</div>}
     </header>
   )
 }
