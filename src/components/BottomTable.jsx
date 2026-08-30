@@ -205,7 +205,7 @@ export default function BottomTable({
     window.location.assign(`/wilayah/${config.childLevel}/${id}`)
   }
 
-  const columnCount = config.extraLabel ? 8 : 7
+  const columnCount = 7
 
   return (
     <section className="w-full min-w-0 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
