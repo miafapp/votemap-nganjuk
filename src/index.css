@@ -224,6 +224,26 @@ button, select, input { font: inherit; }
   background: url('/icons/directions.svg') center / contain no-repeat;
 }
 
+.regional-table-scroll {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+}
+
+.regional-results-table {
+  table-layout: fixed;
+}
+
+.regional-results-table th,
+.regional-results-table td {
+  border-width: 1px;
+  border-style: solid;
+  border-color: #ecdfcb;
+}
+
+.regional-results-table thead th {
+  position: relative;
+}
+
 @media (max-width: 640px) {
   .region-popup {
     min-width: 175px;
