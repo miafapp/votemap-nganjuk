@@ -12,22 +12,24 @@ const DEFAULT_MAP_ZOOM = 10
 const MAP_HEIGHT = '520px'
 const MAP_PADDING = [10, 10]
 
-function MapController({ bounds, level }) {
+function MapController({ bounds, level, selectedTps }) {
   const map = useMap()
   useEffect(() => {
+    if (selectedTps) {
+      const center = L.latLng(selectedTps.lat, selectedTps.lng)
+      map.invalidateSize({ pan: false })
+      map.setView(center, 18, { animate: false })
+      return
+    }
     if (!bounds || !bounds.isValid?.()) {
       map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM)
       return
     }
     map.invalidateSize({ pan: false })
-    if (level === 'tps') {
-      map.setView(bounds.getCenter(), 18)
-      return
-    }
     const maxZoom = level === 'kabupaten' ? 12 : level === 'dapil' ? 15 : level === 'kecamatan' ? 17 : 18
     map.fitBounds(bounds, { padding: MAP_PADDING, maxZoom })
     map.panTo(bounds.getCenter(), { animate: false })
-  }, [bounds, level, map])
+  }, [bounds, level, selectedTps, map])
   return null
 }
 
@@ -160,6 +162,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
   const selectedDapilFeature = dapilId ? dapilGeoJson?.features.find((feature) => getFeatureId(feature, 'dapil_id') === Number(dapilId)) : null
   const selectedKecamatanFeature = kecamatanId ? kecamatanGeoJson?.features.find((feature) => getFeatureId(feature, 'kecamatan_id') === Number(kecamatanId)) : null
   const selectedDesaFeature = desaId ? desaGeoJson?.features.find((feature) => getFeatureId(feature, 'desa_id') === Number(desaId)) : null
+  const selectedTps = tpsId ? tpsMarkers.find((item) => Number(item.id) === Number(tpsId)) : null
 
   const visibleDapilGeoJson = mapLevel === 'kabupaten' ? dapilGeoJson : mapLevel === 'dapil' && selectedDapilFeature ? featureCollection([selectedDapilFeature]) : null
   const visibleKecamatanGeoJson = mapLevel === 'dapil' && dapilId
@@ -179,14 +182,10 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
 
   useEffect(() => {
     if (!dapilGeoJson || !kecamatanGeoJson || !desaGeoJson) return
-    if (tpsId) {
-      const tps = tpsMarkers.find((item) => Number(item.id) === Number(tpsId))
-      if (tps) { setSelectedBounds(L.latLngBounds([tps.lat, tps.lng], [tps.lat, tps.lng])); return }
-    }
     const feature = selectedDesaFeature || selectedKecamatanFeature || selectedDapilFeature
     if (feature?.geometry) { setSelectedBounds(L.geoJSON(feature).getBounds()); return }
     setSelectedBounds(L.geoJSON(dapilGeoJson).getBounds())
-  }, [tpsId, tpsMarkers, selectedDapilFeature, selectedKecamatanFeature, selectedDesaFeature, dapilGeoJson, kecamatanGeoJson, desaGeoJson])
+  }, [selectedDapilFeature, selectedKecamatanFeature, selectedDesaFeature, dapilGeoJson, kecamatanGeoJson, desaGeoJson])
 
   const bindRegionInteraction = (feature, layer, level, levelLabel, idKey, onSelect) => {
     const name = getFeatureName(feature, level === 'dapil' ? ['nama', 'dapil'] : level === 'kecamatan' ? ['kecamatan', 'nama'] : ['desa', 'nama'])
@@ -246,7 +245,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
           <div className="map-shell">
             <MapContainer center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM} style={{ height: MAP_HEIGHT, width: '100%' }} className="rounded-lg" zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} touchZoom={false}>
               <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <MapController bounds={selectedBounds} level={mapLevel} />
+              <MapController bounds={selectedBounds} level={mapLevel} selectedTps={selectedTps} />
               <MapControls level={mapLevel} onBack={onBack} />
               <ContextMask features={maskFeatures} maskKey={`${mapLevel}-${dapilId || ''}-${kecamatanId || ''}-${desaId || ''}`} />
               {visibleDapilGeoJson && <GeoJSON key={`dapil-${dapilId || 'all'}`} data={visibleDapilGeoJson} style={dapilStyle} onEachFeature={onEachDapil} />}
