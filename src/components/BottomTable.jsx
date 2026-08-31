@@ -163,6 +163,7 @@ export default function BottomTable({
   desaId,
   parties = [],
   detail,
+  onSelectRegion,
 }) {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
@@ -233,13 +234,13 @@ export default function BottomTable({
     return () => { cancelled = true }
   }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, config.childLevel])
 
-  const columnCount = 7
-  const openDetail = (row) => {
+  const selectRow = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
     const id = Number(row.id)
-    if (!Number.isFinite(id)) return
-    window.location.assign(`/wilayah/${config.childLevel}/${id}`)
+    if (Number.isFinite(id)) onSelectRegion?.(config.childLevel, id)
   }
+
+  const columnCount = 7
 
   return (
     <section className="w-full min-w-0 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
@@ -292,9 +293,9 @@ export default function BottomTable({
                     <tr
                       key={`${row.id}-${rowNumber}`}
                       className={config.childLevel ? 'cursor-pointer hover:bg-[#fff9ed]' : ''}
-                      onClick={isTouchDevice ? () => openDetail(row) : undefined}
-                      onDoubleClick={!isTouchDevice ? () => openDetail(row) : undefined}
-                      title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka halaman detail' : 'Klik dua kali untuk membuka halaman detail') : undefined}
+                      onClick={isTouchDevice ? () => selectRow(row) : undefined}
+                      onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined}
+                      title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}
                     >
                       <td className="sticky left-0 z-10 w-[48px] min-w-[48px] bg-white px-3 py-2 text-center border border-[#ecdfcb]">{rowNumber}</td>
                       <td className="sticky left-[48px] z-10 min-w-[170px] max-w-[220px] bg-white px-3 py-2 font-bold border border-[#ecdfcb] text-wrap">{row.name}</td>
