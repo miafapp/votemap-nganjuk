@@ -109,7 +109,9 @@ async function enrichPartyVotes(row, pemiluId, childLevel) {
     const detailPromise = childLevel === 'tps'
       ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: id })
       : Promise.resolve(row)
-    const partyPromise = api.getRekapWilayahPartai(pemiluId, childLevel.toUpperCase(), id)
+    const partyPromise = childLevel === 'tps'
+      ? api.getSuara('tps', id, pemiluId)
+      : api.getRekapWilayahPartai(pemiluId, childLevel.toUpperCase(), id)
 
     const [detailData, partyData] = await Promise.all([detailPromise, partyPromise])
     const detail = childLevel === 'tps'
