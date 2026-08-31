@@ -59,14 +59,20 @@ function partyEntries(row) {
 
 function sumPartyVotes(row) {
   const entries = partyEntries(row)
-  if (entries.length) return entries.reduce((sum, [, value]) => sum + value, 0)
-  return numberValue(firstDefined(row, [
-    'suara_seluruh_partai',
-    'total_suara_partai',
-    'jumlah_suara_partai',
-    'suara_partai',
-    'total_suara',
-  ]))
+  const partyTotal = entries.length
+    ? entries.reduce((sum, [, value]) => sum + value, 0)
+    : numberValue(firstDefined(row, [
+      'suara_seluruh_partai',
+      'total_suara_partai',
+      'jumlah_suara_partai',
+      'suara_partai',
+      'total_suara',
+    ]))
+
+  if (partyTotal !== 0) return partyTotal
+
+  const suaraSah = numberValue(firstDefined(row, ['suara_sah', 'jumlah_suara_sah']))
+  return suaraSah !== 0 ? suaraSah : partyTotal
 }
 
 function normalizeRow(row, index, childLevel) {
