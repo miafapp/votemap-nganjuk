@@ -57,6 +57,10 @@ function partyEntries(row) {
   return []
 }
 
+function partyVoteMap(row) {
+  return Object.fromEntries(partyEntries(row).filter(([code]) => code).map(([code, value]) => [code, value]))
+}
+
 function sumPartyVotes(row) {
   const entries = partyEntries(row)
   const partyTotal = entries.length
@@ -98,6 +102,7 @@ function normalizeRow(row, index, childLevel) {
     suaraSeluruhPartai: sumPartyVotes(row),
     suaraSah: numberValue(firstDefined(row, ['suara_sah', 'jumlah_suara_sah'])),
     suaraTidakSah: numberValue(firstDefined(row, ['suara_tidak_sah', 'jumlah_suara_tidak_sah'])),
+    partyVotes: partyVoteMap(row),
   }
 }
 
@@ -180,12 +185,21 @@ export default function BottomTable({
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [search, setSearch] = useState('')
+  const [tableMode, setTableMode] = useState('summary')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
+  const [partyLoading, setPartyLoading] = useState(false)
   const [error, setError] = useState(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
 
   const config = LEVEL_CONFIG[activeLevel] || LEVEL_CONFIG.kabupaten
+  const normalizedParties = useMemo(() => (Array.isArray(parties) ? parties : [])
+    .map((party) => ({
+      ...party,
+      kode_partai: normalizePartyCode(party?.kode_partai || party?.singkatan || party?.kode),
+      nama_partai: party?.nama_partai || party?.singkatan || party?.kode_partai || 'Partai',
+    }))
+    .filter((party) => party.kode_partai), [parties])
 
   const normalizedDetail = useMemo(() => {
     if (activeLevel !== 'tps' || !detail) return []
@@ -199,9 +213,11 @@ export default function BottomTable({
     return source.filter((row) => String(row.name).toLocaleLowerCase('id-ID').includes(query))
   }, [activeLevel, normalizedDetail, rows, search])
 
-  const total = filteredRows.length
+  const tableRows = activeLevel === 'tps' && tableMode === 'party' ? rows : filteredRows
+  const visibleRows = tableMode === 'party' ? tableRows : filteredRows
+  const total = visibleRows.length
   const totalPages = Math.max(1, Math.ceil(total / limit))
-  const displayRows = filteredRows.slice((page - 1) * limit, page * limit)
+  const displayRows = visibleRows.slice((page - 1) * limit, page * limit)
   const pageStart = total === 0 ? 0 : (page - 1) * limit + 1
   const pageEnd = Math.min(page * limit, total)
 
@@ -222,15 +238,13 @@ export default function BottomTable({
     }
 
     let cancelled = false
-    let sourceRows = []
-    let nextIndex = 0
 
     setRows([])
     setLoading(true)
     setError(null)
 
     const load = async () => {
-      sourceRows = await loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId })
+      const sourceRows = await loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId })
       if (cancelled) return
 
       const childLevel = config.childLevel
@@ -251,34 +265,13 @@ export default function BottomTable({
         const merged = summary ? { ...row, ...summary } : row
         return {
           ...normalizeRow(merged, index, row.__level || childLevel),
-          _loadingParty: true,
+          _loadingParty: false,
           _index: index,
         }
       })
 
       setRows(initialRows)
       setLoading(false)
-
-      const worker = async () => {
-        while (!cancelled) {
-          const index = nextIndex
-          nextIndex += 1
-          if (index >= sourceRows.length) return
-
-          const sourceRow = initialRows[index]
-          const levelForRow = sourceRows[index].__level || childLevel
-          const enriched = await enrichPartyVotes(sourceRow, pemiluId, levelForRow)
-          if (cancelled) return
-
-          setRows((current) => current.map((row, rowIndex) => (
-            rowIndex === index
-              ? { ...enriched, _index: index }
-              : row
-          )))
-        }
-      }
-
-      await Promise.all([worker(), worker(), worker()])
     }
 
     load().catch((err) => {
@@ -291,6 +284,58 @@ export default function BottomTable({
     return () => { cancelled = true }
   }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, config.childLevel])
 
+  useEffect(() => {
+    if (tableMode !== 'party' || !pemiluId || (activeLevel === 'tps' && normalizedDetail.length === 0)) {
+      setPartyLoading(false)
+      return undefined
+    }
+
+    const source = activeLevel === 'tps' ? normalizedDetail : rows
+    if (!source.length) return undefined
+
+    const needsEnrichment = source.some((row) => !row._partyLoaded)
+    if (!needsEnrichment) return undefined
+
+    let cancelled = false
+    setPartyLoading(true)
+
+    const enrich = async () => {
+      let nextIndex = 0
+      const worker = async () => {
+        while (!cancelled) {
+          const index = nextIndex
+          nextIndex += 1
+          if (index >= source.length) return
+
+          const sourceRow = source[index]
+          if (sourceRow._partyLoaded) continue
+          const levelForRow = activeLevel === 'tps' ? 'tps' : (sourceRow.raw?.__level || config.childLevel)
+          const enriched = await enrichPartyVotes(sourceRow, pemiluId, levelForRow)
+          if (cancelled) return
+
+          setRows((current) => current.map((row) => (
+            row._index === sourceRow._index ? { ...enriched, _partyLoaded: true } : row
+          )))
+        }
+      }
+
+      if (activeLevel === 'tps') {
+        const enriched = await enrichPartyVotes(source[0], pemiluId, 'tps')
+        if (!cancelled) setRows((current) => current.length ? [{ ...enriched, _partyLoaded: true }] : current)
+      } else {
+        await Promise.all([worker(), worker(), worker(), worker()])
+      }
+
+      if (!cancelled) setPartyLoading(false)
+    }
+
+    enrich().catch(() => {
+      if (!cancelled) setPartyLoading(false)
+    })
+
+    return () => { cancelled = true }
+  }, [tableMode, pemiluId, activeLevel, rows, normalizedDetail, config.childLevel])
+
   const selectRow = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
     const id = Number(row.id)
@@ -298,8 +343,80 @@ export default function BottomTable({
   }
 
   const columnCount = config.extraLabel ? 7 : 6
-  const displayValue = (row, key) => row[key].toLocaleString('id-ID')
-  const displayPartyValue = (row) => row._loadingParty ? '...' : displayValue(row, 'suaraSeluruhPartai')
+  const displayValue = (row, key) => numberValue(row[key]).toLocaleString('id-ID')
+  const partyCodes = normalizedParties.map((party) => party.kode_partai)
+  const partyColumns = normalizedParties.map((party) => ({
+    code: party.kode_partai,
+    name: party.nama_partai,
+    shortName: party.singkatan || party.kode_partai,
+  }))
+  const partyColumnCount = 6 + partyColumns.length
+
+  function renderRows(colSpan, mode) {
+    if (loading || (mode === 'party' && partyLoading && displayRows.some((row) => !row._partyLoaded))) {
+      return <tbody><tr><td colSpan={colSpan} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">Memuat rekap wilayah...</td></tr></tbody>
+    }
+    if (error) return <tbody><tr><td colSpan={colSpan} className="px-3 py-8 text-center text-red-600 border border-[#ecdfcb]">{error}</td></tr></tbody>
+    if (displayRows.length === 0) return <tbody><tr><td colSpan={colSpan} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">{search ? 'Wilayah yang dicari tidak ditemukan.' : 'Tidak ada data rekap pada konteks ini.'}</td></tr></tbody>
+
+    return (
+      <tbody>
+        {displayRows.map((row, index) => {
+          const rowNumber = (page - 1) * limit + index + 1
+          return (
+            <tr key={`${row.id}-${rowNumber}`} className={config.childLevel ? 'cursor-pointer hover:bg-[#fff9ed]' : ''} onClick={isTouchDevice ? () => selectRow(row) : undefined} onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined} title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}>
+              <td className="sticky left-0 z-10 w-[48px] min-w-[48px] bg-white px-3 py-2 text-center border border-[#ecdfcb]">{rowNumber}</td>
+              <td className="sticky left-[48px] z-10 min-w-[170px] max-w-[220px] bg-white px-3 py-2 font-bold border border-[#ecdfcb] text-wrap">{row.name}</td>
+              {config.extraKey && <td className="px-3 py-2 text-center border border-[#ecdfcb]">{displayValue(row, config.extraKey)}</td>}
+              {mode === 'party' && partyCodes.map((code) => (
+                <td key={code} className="px-3 py-2 text-right border border-[#ecdfcb]">{row._loadingParty ? '...' : numberValue(row.partyVotes?.[code]).toLocaleString('id-ID')}</td>
+              ))}
+              <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'dpt')}</td>
+              {mode === 'summary' && <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'suaraSeluruhPartai')}</td>}
+              <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'suaraSah')}</td>
+              <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'suaraTidakSah')}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    )
+  }
+
+  const renderSummaryTable = () => (
+    <table className="w-max min-w-full border-collapse text-xs">
+      <thead className="sticky top-0 z-20">
+        <tr>
+          <th className="sticky left-0 z-30 w-[48px] min-w-[48px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">No.</th>
+          <th className="sticky left-[48px] z-30 min-w-[170px] max-w-[220px] bg-[#fff9ed] px-3 py-2 text-left font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">{config.nameLabel}</th>
+          {config.extraLabel && <th className="min-w-[120px] max-w-[150px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">{config.extraLabel}</th>}
+          <th className="min-w-[90px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">DPT</th>
+          <th className="min-w-[135px] max-w-[160px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">Suara Seluruh Partai</th>
+          <th className="min-w-[90px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">Suara Sah</th>
+          <th className="min-w-[105px] max-w-[125px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">Suara Tdk Sah</th>
+        </tr>
+      </thead>
+      {renderRows(columnCount, 'summary')}
+    </table>
+  )
+
+  const renderPartyTable = () => (
+    <table className="w-max min-w-full border-collapse text-xs">
+      <thead className="sticky top-0 z-20">
+        <tr>
+          <th className="sticky left-0 z-30 w-[48px] min-w-[48px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">No.</th>
+          <th className="sticky left-[48px] z-30 min-w-[170px] max-w-[220px] bg-[#fff9ed] px-3 py-2 text-left font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">{config.nameLabel}</th>
+          {config.extraLabel && <th className="min-w-[120px] max-w-[150px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">{config.extraLabel}</th>}
+          {partyColumns.map((party) => (
+            <th key={party.code} className="min-w-[76px] max-w-[90px] bg-[#fff9ed] px-2 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap" title={party.name}>{party.shortName}</th>
+          ))}
+          <th className="min-w-[90px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">DPT</th>
+          <th className="min-w-[90px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">Suara Sah</th>
+          <th className="min-w-[105px] max-w-[125px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">Suara Tdk Sah</th>
+        </tr>
+      </thead>
+      {renderRows(partyColumnCount, 'party')}
+    </table>
+  )
 
   return (
     <section className="w-full min-w-0 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
@@ -314,40 +431,17 @@ export default function BottomTable({
           <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari wilayah..." className="w-full rounded border border-[#e4d9c7] bg-[#fffdf8] py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#c4482a]" />
         </label>
       </div>
-      <div className="px-4 pb-3 text-xs text-[#82776e]"><strong>(Kecamatan - Desa/Kelurahan - TPS)</strong></div>
+      <div className="flex items-center justify-between gap-3 px-4 pb-2">
+        <div className="text-xs text-[#82776e]"><strong>(Kecamatan - Desa/Kelurahan - TPS)</strong></div>
+        <div className="inline-flex shrink-0 rounded border border-[#e4d9c7] bg-[#fffdf8] p-0.5" role="group" aria-label="Mode tampilan tabel">
+          <button type="button" onClick={() => setTableMode('summary')} className={`rounded px-3 py-1.5 text-xs ${tableMode === 'summary' ? 'bg-[#c4482a] text-white' : 'text-[#6f6259] hover:bg-[#fff3df]'}`}>Ringkasan Wilayah</button>
+          <button type="button" onClick={() => setTableMode('party')} className={`rounded px-3 py-1.5 text-xs ${tableMode === 'party' ? 'bg-[#c4482a] text-white' : 'text-[#6f6259] hover:bg-[#fff3df]'}`}>Perolehan Partai</button>
+        </div>
+      </div>
 
       <div className="px-3 pb-3 min-w-0">
         <div className="w-full max-w-full max-h-[520px] overflow-auto border border-[#ecdfcb]">
-          <table className="w-max min-w-full border-collapse text-xs">
-            <thead className="sticky top-0 z-20">
-              <tr>
-                <th className="sticky left-0 z-30 w-[48px] min-w-[48px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">No.</th>
-                <th className="sticky left-[48px] z-30 min-w-[170px] max-w-[220px] bg-[#fff9ed] px-3 py-2 text-left font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">{config.nameLabel}</th>
-                {config.extraLabel && <th className="min-w-[120px] max-w-[150px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">{config.extraLabel}</th>}
-                <th className="min-w-[90px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">DPT</th>
-                <th className="min-w-[135px] max-w-[160px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">Suara Seluruh Partai</th>
-                <th className="min-w-[90px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] whitespace-nowrap">Suara Sah</th>
-                <th className="min-w-[105px] max-w-[125px] bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] border border-[#ecdfcb] text-wrap">Suara Tdk Sah</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">Memuat rekap wilayah...</td></tr>
-                : error ? <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-red-600 border border-[#ecdfcb]">{error}</td></tr>
-                  : displayRows.length === 0 ? <tr><td colSpan={columnCount} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">{search ? 'Wilayah yang dicari tidak ditemukan.' : 'Tidak ada data rekap pada konteks ini.'}</td></tr>
-                    : displayRows.map((row, index) => {
-                      const rowNumber = (page - 1) * limit + index + 1
-                      return <tr key={`${row.id}-${rowNumber}`} className={config.childLevel ? 'cursor-pointer hover:bg-[#fff9ed]' : ''} onClick={isTouchDevice ? () => selectRow(row) : undefined} onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined} title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}>
-                        <td className="sticky left-0 z-10 w-[48px] min-w-[48px] bg-white px-3 py-2 text-center border border-[#ecdfcb]">{rowNumber}</td>
-                        <td className="sticky left-[48px] z-10 min-w-[170px] max-w-[220px] bg-white px-3 py-2 font-bold border border-[#ecdfcb] text-wrap">{row.name}</td>
-                        {config.extraKey && <td className="px-3 py-2 text-center border border-[#ecdfcb]">{displayValue(row, config.extraKey)}</td>}
-                        <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'dpt')}</td>
-                        <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayPartyValue(row)}</td>
-                        <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'suaraSah')}</td>
-                        <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'suaraTidakSah')}</td>
-                      </tr>
-                    })}
-            </tbody>
-          </table>
+          {tableMode === 'party' ? renderPartyTable() : renderSummaryTable()}
         </div>
       </div>
 
