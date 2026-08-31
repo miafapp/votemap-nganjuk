@@ -224,6 +224,30 @@ button, select, input { font: inherit; }
   background: url('/icons/directions.svg') center / contain no-repeat;
 }
 
+.regional-table-scroll {
+  scrollbar-gutter: stable both-edges;
+}
+
+.regional-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.regional-table th,
+.regional-table td {
+  border-right: 1px solid #ecdfcb;
+  border-bottom: 1px solid #ecdfcb;
+}
+
+.regional-table th:first-child,
+.regional-table td:first-child {
+  border-left: 1px solid #ecdfcb;
+}
+
+.regional-table thead tr:first-child th {
+  border-top: 1px solid #ecdfcb;
+}
+
 @media (max-width: 640px) {
   .region-popup {
     min-width: 175px;
@@ -231,5 +255,11 @@ button, select, input { font: inherit; }
 
   .tps-popup {
     min-width: 205px;
+  }
+
+  .regional-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: auto;
   }
 }

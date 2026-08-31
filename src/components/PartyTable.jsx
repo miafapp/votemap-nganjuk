@@ -1,10 +1,11 @@
 import { getPartyLogo } from '../lib/party-logos'
 
 export default function PartyTable({ parties, totalSuara, loading }) {
-  const total = totalSuara || parties.reduce((sum, p) => sum + (p.jumlah_suara || 0), 0)
-  const topParties = [...(Array.isArray(parties) ? parties : [])]
-    .sort((a, b) => (Number(b.jumlah_suara) || 0) - (Number(a.jumlah_suara) || 0))
-    .slice(0, 7)
+  const safeParties = Array.isArray(parties) ? parties : []
+  const total = Number(totalSuara) || safeParties.reduce((sum, party) => sum + (Number(party?.jumlah_suara) || 0), 0)
+  const topParties = [...safeParties]
+    .sort((a, b) => (Number(b?.jumlah_suara) || 0) - (Number(a?.jumlah_suara) || 0))
+    .slice(0, 10)
 
   return (
     <section className="border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
@@ -24,16 +25,16 @@ export default function PartyTable({ parties, totalSuara, loading }) {
         ) : topParties.length === 0 ? (
           <div className="px-2 py-4 text-[#82776e] text-center">Pilih wilayah untuk melihat data partai</div>
         ) : (
-          topParties.map((p, i) => (
-            <div key={p.partai_id || p.kode_partai || i} className="grid grid-cols-[28px_1fr_70px_45px] items-center gap-[5px] px-2 py-2 border-b border-[#eadfce]">
-              <span>{i + 1}</span>
-              <span className="flex items-center gap-1.5">
-                <img src={getPartyLogo(p.kode_partai)} alt={p.nama_partai} className="w-[22px] h-[22px] rounded-sm object-cover" />
-                {p.nama_partai}
+          topParties.map((party, index) => (
+            <div key={party.partai_id || party.kode_partai || index} className="grid grid-cols-[28px_1fr_70px_45px] items-center gap-[5px] px-2 py-2 border-b border-[#eadfce]">
+              <span>{index + 1}</span>
+              <span className="flex items-center gap-1.5 min-w-0">
+                <img src={getPartyLogo(party.kode_partai)} alt={party.nama_partai} className="w-[22px] h-[22px] shrink-0 rounded-sm object-cover" />
+                <span className="break-words">{party.nama_partai}</span>
               </span>
-              <span className="text-right">{(Number(p.jumlah_suara) || 0).toLocaleString('id-ID')}</span>
+              <span className="text-right">{(Number(party.jumlah_suara) || 0).toLocaleString('id-ID')}</span>
               <span className="text-right">
-                {total > 0 ? (((Number(p.jumlah_suara) || 0) / total) * 100).toFixed(2).replace('.', ',') : '0,00'}%
+                {total > 0 ? (((Number(party.jumlah_suara) || 0) / total) * 100).toFixed(2).replace('.', ',') : '0,00'}%
               </span>
             </div>
           ))
