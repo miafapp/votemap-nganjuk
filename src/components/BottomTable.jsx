@@ -334,7 +334,7 @@ export default function BottomTable({
     })
 
     return () => { cancelled = true }
-  }, [tableMode, pemiluId, activeLevel, rows, normalizedDetail, config.childLevel])
+  }, [tableMode, pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, config.childLevel])
 
   const selectRow = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
@@ -350,10 +350,10 @@ export default function BottomTable({
     name: party.nama_partai,
     shortName: party.singkatan || party.kode_partai,
   }))
-  const partyColumnCount = 6 + partyColumns.length
+  const partyColumnCount = 5 + (config.extraLabel ? 1 : 0) + partyColumns.length
 
   function renderRows(colSpan, mode) {
-    if (loading || (mode === 'party' && partyLoading && displayRows.some((row) => !row._partyLoaded))) {
+    if (loading || (mode === 'party' && partyLoading)) {
       return <tbody><tr><td colSpan={colSpan} className="px-3 py-8 text-center text-[#82776e] border border-[#ecdfcb]">Memuat rekap wilayah...</td></tr></tbody>
     }
     if (error) return <tbody><tr><td colSpan={colSpan} className="px-3 py-8 text-center text-red-600 border border-[#ecdfcb]">{error}</td></tr></tbody>
