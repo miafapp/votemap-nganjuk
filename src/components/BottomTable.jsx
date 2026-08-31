@@ -118,29 +118,11 @@ async function enrichRow(row, pemiluId, childLevel) {
 async function loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId }) {
   if (activeLevel === 'kabupaten') {
     const dapils = await api.getDapil(pemiluId)
-    return Promise.all(dapils.map(async (row) => {
-      const dapilIdValue = firstDefined(row, ['dapil_id', 'id', 'wilayah_id'])
-      if (!dapilIdValue) return { ...row, __level: 'dapil' }
-      try {
-        const kecamatanRows = await api.getKecamatan(pemiluId, dapilIdValue)
-        return { ...row, jumlah_kecamatan: kecamatanRows.length, __level: 'dapil' }
-      } catch {
-        return { ...row, __level: 'dapil' }
-      }
-    }))
+    return dapils.map((row) => ({ ...row, __level: 'dapil' }))
   }
 
   if (activeLevel === 'dapil') {
-    return Promise.all(kecamatanList.map(async (row) => {
-      const kecamatanId = firstDefined(row, ['kecamatan_id', 'id', 'wilayah_id'])
-      if (!kecamatanId) return { ...row, __level: 'kecamatan' }
-      try {
-        const desaRows = await api.getDesa(kecamatanId, pemiluId, dapilId)
-        return { ...row, jumlah_desa: desaRows.length, __level: 'kecamatan' }
-      } catch {
-        return { ...row, __level: 'kecamatan' }
-      }
-    }))
+    return kecamatanList.map((row) => ({ ...row, __level: 'kecamatan' }))
   }
 
   if (activeLevel === 'kecamatan') {
@@ -210,26 +192,55 @@ export default function BottomTable({
     }
 
     let cancelled = false
+    let sourceRows = []
+    let nextIndex = 0
+
+    setRows([])
     setLoading(true)
     setError(null)
 
-    loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId })
-      .then(async (sourceRows) => {
-        const enriched = await Promise.all(
-          sourceRows.map((row, index) => enrichRow(row, pemiluId, row.__level || config.childLevel)
-            .then((value) => ({ ...value, _index: index }))),
-        )
-        if (cancelled) return
-        setRows(enriched)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setRows([])
-        setError(err.message || 'Gagal memuat data tabel rekap wilayah')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+    const load = async () => {
+      sourceRows = await loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId })
+      if (cancelled) return
+
+      const childLevel = config.childLevel
+      const initialRows = sourceRows.map((row, index) => ({
+        ...normalizeRow(row, index, row.__level || childLevel),
+        _loading: true,
+        _index: index,
+      }))
+
+      setRows(initialRows)
+      setLoading(false)
+
+      const worker = async () => {
+        while (!cancelled) {
+          const index = nextIndex
+          nextIndex += 1
+          if (index >= sourceRows.length) return
+
+          const sourceRow = sourceRows[index]
+          const levelForRow = sourceRow.__level || childLevel
+          const enriched = await enrichRow(sourceRow, pemiluId, levelForRow)
+          if (cancelled) return
+
+          setRows((current) => current.map((row, rowIndex) => (
+            rowIndex === index
+              ? { ...enriched, _loading: false, _index: index }
+              : row
+          )))
+        }
+      }
+
+      await Promise.all([worker(), worker(), worker()])
+    }
+
+    load().catch((err) => {
+      if (cancelled) return
+      setRows([])
+      setLoading(false)
+      setError(err.message || 'Gagal memuat data tabel rekap wilayah')
+    })
 
     return () => { cancelled = true }
   }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, config.childLevel])
@@ -241,6 +252,10 @@ export default function BottomTable({
   }
 
   const columnCount = 7
+
+  const displayValue = (row, key) => (
+    row._loading ? '...' : row[key].toLocaleString('id-ID')
+  )
 
   return (
     <section className="w-full min-w-0 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
@@ -299,11 +314,11 @@ export default function BottomTable({
                     >
                       <td className="sticky left-0 z-10 w-[48px] min-w-[48px] bg-white px-3 py-2 text-center border border-[#ecdfcb]">{rowNumber}</td>
                       <td className="sticky left-[48px] z-10 min-w-[170px] max-w-[220px] bg-white px-3 py-2 font-bold border border-[#ecdfcb] text-wrap">{row.name}</td>
-                      {config.extraKey && <td className="px-3 py-2 text-center border border-[#ecdfcb]">{row[config.extraKey].toLocaleString('id-ID')}</td>}
-                      <td className="px-3 py-2 text-right border border-[#ecdfcb]">{row.dpt.toLocaleString('id-ID')}</td>
-                      <td className="px-3 py-2 text-right border border-[#ecdfcb]">{row.suaraSeluruhPartai.toLocaleString('id-ID')}</td>
-                      <td className="px-3 py-2 text-right border border-[#ecdfcb]">{row.suaraSah.toLocaleString('id-ID')}</td>
-                      <td className="px-3 py-2 text-right border border-[#ecdfcb]">{row.suaraTidakSah.toLocaleString('id-ID')}</td>
+                      {config.extraKey && <td className="px-3 py-2 text-center border border-[#ecdfcb]">{row._loading ? '...' : row[config.extraKey].toLocaleString('id-ID')}</td>}
+                      <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'dpt')}</td>
+                      <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'suaraSeluruhPartai')}</td>
+                      <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'suaraSah')}</td>
+                      <td className="px-3 py-2 text-right border border-[#ecdfcb]">{displayValue(row, 'suaraTidakSah')}</td>
                     </tr>
                   )
                 })
