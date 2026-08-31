@@ -102,29 +102,38 @@ function rowMatchesSummary(row, summary) {
 }
 
 async function enrichPartyVotes(row, pemiluId, childLevel) {
-  const id = firstDefined(row, [`${childLevel}_id`, 'wilayah_id', 'id'])
-  if (!id) return { ...normalizeRow(row, 0, childLevel), _loadingParty: false }
+  const id = firstDefined(row?.raw || row, [`${childLevel}_id`, 'wilayah_id', 'id'])
+  if (!id) return { ...row, _loadingParty: false }
 
   try {
     const detailPromise = childLevel === 'tps'
       ? api.getWilayahDetail({ pemilu_id: pemiluId, tps_id: id })
-      : Promise.resolve(row)
+      : Promise.resolve(null)
     const partyPromise = childLevel === 'tps'
       ? api.getSuara('tps', id, pemiluId)
       : api.getRekapWilayahPartai(pemiluId, childLevel.toUpperCase(), id)
 
     const [detailData, partyData] = await Promise.all([detailPromise, partyPromise])
     const detail = childLevel === 'tps'
-      ? (extractArray(detailData)[0] || detailData || row)
-      : row
+      ? (extractArray(detailData)[0] || detailData || {})
+      : {}
+
+    const baseRaw = row.raw && typeof row.raw === 'object' ? row.raw : row
+    const enrichedRaw = {
+      ...baseRaw,
+      ...detail,
+      partai: partyData,
+    }
+    const normalized = normalizeRow(enrichedRaw, row._index ?? 0, childLevel)
 
     return {
-      ...normalizeRow({ ...row, ...detail, partai: partyData }, 0, childLevel),
+      ...normalized,
       _loadingParty: false,
+      _index: row._index,
     }
   } catch {
     return {
-      ...normalizeRow(row, 0, childLevel),
+      ...row,
       _loadingParty: false,
     }
   }
