@@ -292,6 +292,7 @@ export default function BottomTable({
 
     const source = activeLevel === 'tps' ? normalizedDetail : rows
     if (!source.length) return undefined
+    if (activeLevel === 'tps' && rows[0]?._partyLoaded) return undefined
 
     const needsEnrichment = source.some((row) => !row._partyLoaded)
     if (!needsEnrichment) return undefined
@@ -334,7 +335,7 @@ export default function BottomTable({
     })
 
     return () => { cancelled = true }
-  }, [tableMode, pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, config.childLevel])
+  }, [tableMode, pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, rows.length, config.childLevel])
 
   const selectRow = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
