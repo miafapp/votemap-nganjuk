@@ -31,6 +31,19 @@ async function apiFetch(path, params = {}) {
   return json.data
 }
 
+function normalizePartyVoteTotal(row) {
+  const total = Number(row?.total_suara)
+  const suaraPartai = Number(row?.suara_partai)
+  const suaraCaleg = Number(row?.suara_caleg)
+
+  if (Number.isFinite(total) && total !== 0) return total
+  if (Number.isFinite(suaraPartai) || Number.isFinite(suaraCaleg)) {
+    return (Number.isFinite(suaraPartai) ? suaraPartai : 0)
+      + (Number.isFinite(suaraCaleg) ? suaraCaleg : 0)
+  }
+  return Number.isFinite(total) ? total : 0
+}
+
 export const api = {
   getPemilu: () => apiFetch('/api/pemilu'),
   getDapil: (pemiluId) => apiFetch('/api/dapil', { pemilu_id: pemiluId }),
@@ -43,11 +56,20 @@ export const api = {
     level,
     wilayah_id: wilayahId,
   }),
-  getRekapWilayahPartai: (pemiluId, level, wilayahId) => apiFetch('/api/summary/partai', {
-    pemilu_id: pemiluId,
-    level,
-    wilayah_id: wilayahId,
-  }),
+  getRekapWilayahPartai: async (pemiluId, level, wilayahId) => {
+    const rows = await apiFetch('/api/summary/partai', {
+      pemilu_id: pemiluId,
+      level,
+      wilayah_id: wilayahId,
+    })
+
+    if (!Array.isArray(rows)) return rows
+
+    return rows.map((row) => ({
+      ...row,
+      jumlah_suara: normalizePartyVoteTotal(row),
+    }))
+  },
   getRekapWilayahPage: (pemiluId, level, parentId, page = 1, limit = 10) => apiFetch('/api/rekap-wilayah', {
     pemilu_id: pemiluId,
     level,
