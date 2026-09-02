@@ -72,6 +72,35 @@ function aggregateKabupaten(records) {
   }
 }
 
+async function loadKabupatenParties(pemiluId, summaryRows) {
+  const dapilRows = (Array.isArray(summaryRows) ? summaryRows : [])
+    .filter((row) => String(row?.level || '').toUpperCase() === 'DAPIL' && Number(row?.wilayah_id) > 0)
+
+  if (!dapilRows.length) return []
+
+  const results = await Promise.all(
+    dapilRows.map((row) => api.getRekapWilayahPartai(pemiluId, 'DAPIL', Number(row.wilayah_id)))
+  )
+
+  const totals = new Map()
+  results.flatMap((rows) => Array.isArray(rows) ? rows : []).forEach((party) => {
+    const key = party?.pemilu_partai_id ?? party?.partai_id ?? party?.kode_partai ?? party?.singkatan
+    if (key == null) return
+
+    const total = Number(party?.jumlah_suara)
+    const fallback = Number(party?.total_suara)
+    const amount = Number.isFinite(total) ? total : (Number.isFinite(fallback) ? fallback : 0)
+    const current = totals.get(key)
+
+    totals.set(key, {
+      ...party,
+      jumlah_suara: (current?.jumlah_suara || 0) + amount,
+    })
+  })
+
+  return Array.from(totals.values()).sort((a, b) => (Number(a?.nomor_urut) || 0) - (Number(b?.nomor_urut) || 0))
+}
+
 function App() {
   const [pemiluId, setPemiluId] = useState(null)
   const [dapilId, setDapilId] = useState(null)
@@ -146,16 +175,25 @@ function App() {
         return
       }
 
-      const [summaryRows, partyRows] = await Promise.all([
-        api.getRekapWilayah(pemiluId),
-        api.getSuaraKabupaten(pemiluId),
-      ])
+      const summaryRows = await api.getRekapWilayah(pemiluId)
       if (cancelled) return
+
       const rows = Array.isArray(summaryRows) ? summaryRows : []
       setDetail(aggregateKabupaten(rows))
-      setParties(normalizeParties(partyRows))
-      const kabupatenUpdatedAt = latestUpdatedAt(rows) || updatedAtFromData(partyRows)
-      if (kabupatenUpdatedAt) setLastUpdated(kabupatenUpdatedAt)
+
+      try {
+        const partyRows = await loadKabupatenParties(pemiluId, rows)
+        if (cancelled) return
+        setParties(normalizeParties(partyRows))
+        const partyUpdatedAt = updatedAtFromData(partyRows)
+        const kabupatenUpdatedAt = latestUpdatedAt(rows) || partyUpdatedAt
+        if (kabupatenUpdatedAt) setLastUpdated(kabupatenUpdatedAt)
+      } catch {
+        if (cancelled) return
+        setParties([])
+        const kabupatenUpdatedAt = latestUpdatedAt(rows)
+        if (kabupatenUpdatedAt) setLastUpdated(kabupatenUpdatedAt)
+      }
     }
 
     loadDashboard()
