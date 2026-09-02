@@ -72,18 +72,9 @@ function aggregateKabupaten(records) {
   }
 }
 
-async function loadKabupatenParties(pemiluId, summaryRows) {
-  const dapilRows = (Array.isArray(summaryRows) ? summaryRows : [])
-    .filter((row) => String(row?.level || '').toUpperCase() === 'DAPIL' && Number(row?.wilayah_id) > 0)
-
-  if (!dapilRows.length) return []
-
-  const results = await Promise.all(
-    dapilRows.map((row) => api.getRekapWilayahPartai(pemiluId, 'DAPIL', Number(row.wilayah_id)))
-  )
-
+function aggregatePartyRows(rows) {
   const totals = new Map()
-  results.flatMap((rows) => Array.isArray(rows) ? rows : []).forEach((party) => {
+  ;(Array.isArray(rows) ? rows : []).forEach((party) => {
     const key = party?.pemilu_partai_id ?? party?.partai_id ?? party?.kode_partai ?? party?.singkatan
     if (key == null) return
 
@@ -99,6 +90,25 @@ async function loadKabupatenParties(pemiluId, summaryRows) {
   })
 
   return Array.from(totals.values()).sort((a, b) => (Number(a?.nomor_urut) || 0) - (Number(b?.nomor_urut) || 0))
+}
+
+async function loadKabupatenParties(pemiluId, summaryRows) {
+  const dapilRows = (Array.isArray(summaryRows) ? summaryRows : [])
+    .filter((row) => String(row?.level || '').toUpperCase() === 'DAPIL' && Number(row?.wilayah_id) > 0)
+
+  if (!dapilRows.length) return []
+
+  const wilayahIds = dapilRows.map((row) => Number(row.wilayah_id))
+
+  try {
+    const batchRows = await api.getRekapWilayahPartaiBatch(pemiluId, 'DAPIL', wilayahIds)
+    return aggregatePartyRows(batchRows)
+  } catch {
+    const results = await Promise.all(
+      dapilRows.map((row) => api.getRekapWilayahPartai(pemiluId, 'DAPIL', Number(row.wilayah_id)))
+    )
+    return aggregatePartyRows(results.flatMap((rows) => Array.isArray(rows) ? rows : []))
+  }
 }
 
 function App() {
