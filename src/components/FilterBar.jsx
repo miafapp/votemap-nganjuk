@@ -13,13 +13,11 @@ function FilterField({ label, children }) {
   return <label className="grid gap-[5px] font-bold text-xs min-w-0">{label}{children}</label>
 }
 
-export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onDapilChange, onKecamatanChange, onDesaChange, onTpsChange, refreshDapilToken = 0, refreshKecamatanToken = 0, refreshDesaToken = 0, refreshTpsToken = 0, onReloadDapil, onReloadKecamatan, onReloadDesa, onReloadTps }) {
+export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, kecamatanList = [], onDapilChange, onKecamatanChange, onDesaChange, onTpsChange, refreshDapilToken = 0, refreshDesaToken = 0, refreshTpsToken = 0, onReloadDapil, onReloadKecamatan, onReloadDesa, onReloadTps }) {
   const [dapilList, setDapilList] = useState([])
-  const [kecamatanList, setKecamatanList] = useState([])
   const [desaList, setDesaList] = useState([])
   const [tpsList, setTpsList] = useState([])
   const [loadingDapil, setLoadingDapil] = useState(false)
-  const [loadingKecamatan, setLoadingKecamatan] = useState(false)
   const [loadingDesa, setLoadingDesa] = useState(false)
   const [loadingTps, setLoadingTps] = useState(false)
 
@@ -31,15 +29,6 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onDa
     setLoadingDapil(true)
     api.getDapil(pemiluId).then(setDapilList).catch(() => setDapilList([])).finally(() => setLoadingDapil(false))
   }, [pemiluId, refreshDapilToken])
-
-  useEffect(() => {
-    if (!pemiluId) {
-      setKecamatanList([])
-      return
-    }
-    setLoadingKecamatan(true)
-    api.getKecamatan(pemiluId, dapilId).then(setKecamatanList).catch(() => setKecamatanList([])).finally(() => setLoadingKecamatan(false))
-  }, [pemiluId, dapilId, refreshKecamatanToken])
 
   useEffect(() => {
     if (!kecamatanId) {
@@ -73,11 +62,11 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, onDa
 
       <FilterField label="Pilih Kecamatan">
         <div className="flex items-center gap-2">
-          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={kecamatanId || ''} disabled={!pemiluId || loadingKecamatan} onChange={(e) => onKecamatanChange(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">{loadingKecamatan ? 'Memuat...' : 'Semua Kecamatan'}</option>
+          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={kecamatanId || ''} disabled={!pemiluId || !kecamatanList.length} onChange={(e) => onKecamatanChange(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">Semua Kecamatan</option>
             {kecamatanList.map((k) => <option key={k.id} value={k.id}>{k.nama || k.kecamatan}</option>)}
           </select>
-          <ReloadButton label="Muat ulang Kecamatan" onClick={onReloadKecamatan} disabled={!pemiluId || loadingKecamatan} />
+          <ReloadButton label="Muat ulang Kecamatan" onClick={onReloadKecamatan} disabled={!pemiluId} />
         </div>
       </FilterField>
 
