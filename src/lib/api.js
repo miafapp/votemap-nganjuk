@@ -72,6 +72,15 @@ function normalizePartyVoteTotal(row) {
   return Number.isFinite(total) ? total : 0
 }
 
+function normalizePartyRows(rows) {
+  if (!Array.isArray(rows)) return rows
+
+  return rows.map((row) => ({
+    ...row,
+    jumlah_suara: normalizePartyVoteTotal(row),
+  }))
+}
+
 export const api = {
   getPemilu: () => apiFetch('/api/pemilu'),
   getDapil: (pemiluId) => apiFetch('/api/dapil', { pemilu_id: pemiluId }),
@@ -91,12 +100,22 @@ export const api = {
       wilayah_id: wilayahId,
     })
 
-    if (!Array.isArray(rows)) return rows
+    return normalizePartyRows(rows)
+  },
+  getRekapWilayahPartaiBatch: async (pemiluId, level, wilayahIds) => {
+    const ids = (Array.isArray(wilayahIds) ? wilayahIds : [])
+      .map(Number)
+      .filter((id) => Number.isInteger(id) && id > 0)
 
-    return rows.map((row) => ({
-      ...row,
-      jumlah_suara: normalizePartyVoteTotal(row),
-    }))
+    if (!ids.length) return []
+
+    const rows = await apiFetch('/api/summary/partai/batch', {
+      pemilu_id: pemiluId,
+      level,
+      wilayah_ids: ids.join(','),
+    })
+
+    return normalizePartyRows(rows)
   },
   getRekapWilayahPage: (pemiluId, level, parentId, page = 1, limit = 10) => apiFetch('/api/rekap-wilayah', {
     pemilu_id: pemiluId,
