@@ -1,11 +1,19 @@
 const BASE_URL = 'https://pemilu24.miafapp.workers.dev'
 
+const API_CACHE_TTL_MS = 60_000
+const responseCache = new Map()
+const inFlightRequests = new Map()
+
 function getApiKey() {
   const key = import.meta.env.VITE_API_KEY
   if (!key || key === 'YOUR_API_KEY_HERE') {
     throw new Error('VITE_API_KEY belum diatur. Tambahkan API key yang valid di file .env pada variabel VITE_API_KEY.')
   }
   return key
+}
+
+function buildCacheKey(url) {
+  return url.toString()
 }
 
 async function apiFetch(path, params = {}) {
@@ -16,19 +24,39 @@ async function apiFetch(path, params = {}) {
     }
   }
 
-  const res = await fetch(url, {
+  const cacheKey = buildCacheKey(url)
+  const cached = responseCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) return cached.data
+  if (cached) responseCache.delete(cacheKey)
+
+  const existingRequest = inFlightRequests.get(cacheKey)
+  if (existingRequest) return existingRequest
+
+  const request = fetch(url, {
     headers: { 'X-API-Key': getApiKey() },
   })
+    .then(async (res) => {
+      if (!res.ok) {
+        throw new Error(`Gagal memuat data (${res.status}): ${res.statusText}`)
+      }
 
-  if (!res.ok) {
-    throw new Error(`Gagal memuat data (${res.status}): ${res.statusText}`)
-  }
+      const json = await res.json()
+      if (!json.success) {
+        throw new Error(json.message || 'Respons API tidak sukses')
+      }
 
-  const json = await res.json()
-  if (!json.success) {
-    throw new Error(json.message || 'Respons API tidak sukses')
-  }
-  return json.data
+      responseCache.set(cacheKey, {
+        data: json.data,
+        expiresAt: Date.now() + API_CACHE_TTL_MS,
+      })
+      return json.data
+    })
+    .finally(() => {
+      inFlightRequests.delete(cacheKey)
+    })
+
+  inFlightRequests.set(cacheKey, request)
+  return request
 }
 
 function normalizePartyVoteTotal(row) {

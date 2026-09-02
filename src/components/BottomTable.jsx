@@ -251,7 +251,10 @@ export default function BottomTable({
       return undefined
     }
 
-    const source = activeLevel === 'tps' ? normalizedDetail : rows
+    // Hanya ambil data partai untuk baris yang sedang ditampilkan.
+    // Sebelumnya seluruh rows di-enrich sekaligus sehingga satu halaman konteks
+    // dapat memicu puluhan request /api/summary/partai.
+    const source = activeLevel === 'tps' ? normalizedDetail : displayRows
     if (!source.length) {
       setPartyLoading(false)
       return undefined
@@ -283,7 +286,9 @@ export default function BottomTable({
         const enriched = await enrichPartyVotes(source[0], pemiluId, 'tps')
         if (!cancelled) setRows((current) => current.length ? [{ ...enriched, _partyLoaded: true }] : current)
       } else {
-        await Promise.all([worker(), worker(), worker(), worker()])
+        // Dua worker cukup untuk menjaga latency tetap baik tanpa membuat burst
+        // request yang tidak perlu ke Worker/D1.
+        await Promise.all([worker(), worker()])
       }
       if (!cancelled) setPartyLoading(false)
     }
@@ -293,7 +298,7 @@ export default function BottomTable({
     })
 
     return () => { cancelled = true }
-  }, [tableMode, pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, rows.length, config.childLevel])
+  }, [tableMode, pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, page, limit, rows.length, config.childLevel, displayRows])
 
   const selectRow = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
