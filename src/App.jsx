@@ -311,12 +311,12 @@ function App() {
         dapilId={dapilId}
         kecamatanId={kecamatanId}
         desaId={desaId}
+        kecamatanList={kecamatanList}
         onDapilChange={handleDapilChange}
         onKecamatanChange={handleKecamatanChange}
         onDesaChange={handleDesaChange}
         onTpsChange={setTpsId}
         refreshDapilToken={refreshTokens.dapil}
-        refreshKecamatanToken={refreshTokens.kecamatan}
         refreshDesaToken={refreshTokens.desa}
         refreshTpsToken={refreshTokens.tps}
         onReloadDapil={handleReloadDapil}
