@@ -164,7 +164,7 @@ function App() {
         const apiLevel = level.toUpperCase()
         const [summaryData, partyData] = await Promise.all([
           api.getRekapWilayah(pemiluId, apiLevel, levelId),
-          api.getRekapWilayahPartai(pemiluId, apiLevel, levelId).catch(() => api.getSuara(level, levelId, pemiluId)),
+          api.getRekapWilayahPartai(pemiluId, apiLevel, levelId),
         ])
         if (cancelled) return
         const regionDetail = firstRecord(summaryData)
