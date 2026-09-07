@@ -128,6 +128,34 @@ async function enrichPartyVotes(row, pemiluId, childLevel) {
   }
 }
 
+async function enrichPartyVotesBatch(rows, pemiluId, childLevel) {
+  if (!rows.length) return []
+
+  const wilayahIds = rows
+    .map((row) => Number(row.id))
+    .filter((id) => Number.isInteger(id) && id > 0)
+
+  if (!wilayahIds.length) return rows
+
+  const batchRows = extractArray(await api.getRekapWilayahPartaiBatch(pemiluId, childLevel.toUpperCase(), wilayahIds))
+  const byWilayah = new Map()
+
+  batchRows.forEach((party) => {
+    const wilayahId = Number(firstDefined(party, ['wilayah_id', 'id']))
+    if (!Number.isInteger(wilayahId)) return
+    const current = byWilayah.get(wilayahId) || []
+    current.push(party)
+    byWilayah.set(wilayahId, current)
+  })
+
+  return rows.map((row) => {
+    const partyRows = byWilayah.get(Number(row.id)) || []
+    const baseRaw = row.raw && typeof row.raw === 'object' ? row.raw : row
+    const normalized = normalizeRow({ ...baseRaw, partai: partyRows }, row._index ?? 0, childLevel)
+    return { ...normalized, _loadingParty: false, _index: row._index, _partyLoaded: true }
+  })
+}
+
 async function loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId }) {
   if (activeLevel === 'kabupaten') return (await api.getDapil(pemiluId)).map((row) => ({ ...row, __level: 'dapil' }))
   if (activeLevel === 'dapil') return kecamatanList.map((row) => ({ ...row, __level: 'kecamatan' }))
@@ -148,7 +176,7 @@ export default function BottomTable({
   dapilId,
   desaId,
   parties = [],
-  detail,
+  selectedTpsId = null,
   onSelectRegion,
 }) {
   const [page, setPage] = useState(1)
@@ -161,7 +189,10 @@ export default function BottomTable({
   const [error, setError] = useState(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
 
-  const config = LEVEL_CONFIG[activeLevel] || LEVEL_CONFIG.kabupaten
+  const tableLevel = activeLevel === 'tps' ? 'desa' : activeLevel
+  const tableActiveId = activeLevel === 'tps' ? desaId : activeId
+  const config = LEVEL_CONFIG[tableLevel] || LEVEL_CONFIG.kabupaten
+
   const normalizedParties = useMemo(() => (Array.isArray(parties) ? parties : [])
     .map((party) => ({
       ...party,
@@ -170,23 +201,15 @@ export default function BottomTable({
     }))
     .filter((party) => party.kode_partai), [parties])
 
-  const normalizedDetail = useMemo(() => {
-    if (activeLevel !== 'tps' || !detail) return []
-    return [normalizeRow({ ...detail, partai: parties }, 0, 'tps')]
-  }, [activeLevel, detail, parties])
-
   const filteredRows = useMemo(() => {
-    const source = activeLevel === 'tps' ? normalizedDetail : rows
     const query = search.trim().toLocaleLowerCase('id-ID')
-    if (!query) return source
-    return source.filter((row) => String(row.name).toLocaleLowerCase('id-ID').includes(query))
-  }, [activeLevel, normalizedDetail, rows, search])
+    if (!query) return rows
+    return rows.filter((row) => String(row.name).toLocaleLowerCase('id-ID').includes(query))
+  }, [rows, search])
 
-  const tableRows = activeLevel === 'tps' && tableMode === 'party' ? rows : filteredRows
-  const visibleRows = tableMode === 'party' ? tableRows : filteredRows
-  const total = visibleRows.length
+  const total = filteredRows.length
   const totalPages = Math.max(1, Math.ceil(total / limit))
-  const displayRows = visibleRows.slice((page - 1) * limit, page * limit)
+  const displayRows = filteredRows.slice((page - 1) * limit, page * limit)
   const pageStart = total === 0 ? 0 : (page - 1) * limit + 1
   const pageEnd = Math.min(page * limit, total)
 
@@ -196,10 +219,10 @@ export default function BottomTable({
 
   useEffect(() => {
     setPage(1)
-  }, [activeLevel, activeId, pemiluId, limit, search, tableMode])
+  }, [activeLevel, activeId, pemiluId, limit, search, tableMode, desaId])
 
   useEffect(() => {
-    if (!pemiluId || activeLevel === 'tps') {
+    if (!pemiluId) {
       setRows([])
       setLoading(false)
       setError(null)
@@ -212,7 +235,14 @@ export default function BottomTable({
     setError(null)
 
     const load = async () => {
-      const sourceRows = await loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId })
+      const sourceRows = await loadChildRows({
+        pemiluId,
+        activeLevel: tableLevel,
+        activeId: tableActiveId,
+        dapilId,
+        kecamatanList,
+        desaId,
+      })
       if (cancelled) return
 
       const childLevel = config.childLevel
@@ -243,23 +273,10 @@ export default function BottomTable({
     })
 
     return () => { cancelled = true }
-  }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, config.childLevel])
+  }, [pemiluId, tableLevel, tableActiveId, dapilId, desaId, kecamatanList, config.childLevel])
 
   useEffect(() => {
-    if (tableMode !== 'party' || !pemiluId || (activeLevel === 'tps' && normalizedDetail.length === 0)) {
-      setPartyLoading(false)
-      return undefined
-    }
-
-    // Hanya ambil data partai untuk baris yang sedang ditampilkan.
-    // Sebelumnya seluruh rows di-enrich sekaligus sehingga satu konteks
-    // dapat memicu request /api/summary/partai untuk seluruh baris.
-    const source = activeLevel === 'tps' ? normalizedDetail : displayRows
-    if (!source.length) {
-      setPartyLoading(false)
-      return undefined
-    }
-    if (source.every((row) => row._partyLoaded)) {
+    if (tableMode !== 'party' || !pemiluId || !displayRows.length) {
       setPartyLoading(false)
       return undefined
     }
@@ -268,27 +285,46 @@ export default function BottomTable({
     setPartyLoading(true)
 
     const enrich = async () => {
-      let nextIndex = 0
-      const worker = async () => {
-        while (!cancelled) {
-          const index = nextIndex++
-          if (index >= source.length) return
-          const sourceRow = source[index]
-          if (sourceRow._partyLoaded) continue
-          const levelForRow = activeLevel === 'tps' ? 'tps' : (sourceRow.raw?.__level || config.childLevel)
-          const enriched = await enrichPartyVotes(sourceRow, pemiluId, levelForRow)
-          if (cancelled) return
-          setRows((current) => current.map((row) => row._index === sourceRow._index ? { ...enriched, _partyLoaded: true } : row))
-        }
-      }
+      const childLevel = config.childLevel
 
-      if (activeLevel === 'tps') {
-        const enriched = await enrichPartyVotes(source[0], pemiluId, 'tps')
-        if (!cancelled) setRows((current) => current.length ? [{ ...enriched, _partyLoaded: true }] : current)
+      if (childLevel !== 'tps') {
+        try {
+          const enrichedRows = await enrichPartyVotesBatch(displayRows, pemiluId, childLevel)
+          if (!cancelled) {
+            const enrichedByIndex = new Map(enrichedRows.map((row) => [row._index, row]))
+            setRows((current) => current.map((row) => enrichedByIndex.get(row._index) || row))
+          }
+        } catch {
+          let nextIndex = 0
+          const worker = async () => {
+            while (!cancelled) {
+              const index = nextIndex++
+              if (index >= displayRows.length) return
+              const sourceRow = displayRows[index]
+              if (sourceRow._partyLoaded) continue
+              const enriched = await enrichPartyVotes(sourceRow, pemiluId, childLevel)
+              if (cancelled) return
+              setRows((current) => current.map((row) => row._index === sourceRow._index ? { ...enriched, _partyLoaded: true } : row))
+            }
+          }
+          await Promise.all([worker(), worker()])
+        }
       } else {
-        // Dua worker cukup untuk menjaga latency tanpa membuat burst request.
+        let nextIndex = 0
+        const worker = async () => {
+          while (!cancelled) {
+            const index = nextIndex++
+            if (index >= displayRows.length) return
+            const sourceRow = displayRows[index]
+            if (sourceRow._partyLoaded) continue
+            const enriched = await enrichPartyVotes(sourceRow, pemiluId, childLevel)
+            if (cancelled) return
+            setRows((current) => current.map((row) => row._index === sourceRow._index ? { ...enriched, _partyLoaded: true } : row))
+          }
+        }
         await Promise.all([worker(), worker()])
       }
+
       if (!cancelled) setPartyLoading(false)
     }
 
@@ -297,12 +333,13 @@ export default function BottomTable({
     })
 
     return () => { cancelled = true }
-  }, [tableMode, pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, page, limit, rows.length, config.childLevel])
+  }, [tableMode, pemiluId, page, limit, rows.length, config.childLevel, displayRows])
 
   const selectRow = (row) => {
-    if (!config.childLevel || activeLevel === 'tps') return
+    if (!config.childLevel) return
     const id = Number(row.id)
-    if (Number.isFinite(id)) onSelectRegion?.(config.childLevel, id)
+    if (!Number.isFinite(id)) return
+    onSelectRegion?.(config.childLevel, id)
   }
 
   const displayValue = (row, key) => numberValue(row[key]).toLocaleString('id-ID')
@@ -324,18 +361,25 @@ export default function BottomTable({
       <tbody>
         {displayRows.map((row, index) => {
           const rowNumber = (page - 1) * limit + index + 1
+          const isSelectedTps = activeLevel === 'tps' && Number(row.id) === Number(selectedTpsId)
+          const rowClass = [
+            config.childLevel ? 'cursor-pointer hover:bg-[#fff9ed]' : '',
+            isSelectedTps ? 'bg-[#f7e1d5]' : '',
+          ].filter(Boolean).join(' ')
+          const stickyClass = isSelectedTps ? 'bg-[#f7e1d5]' : 'bg-white'
+
           return (
-            <tr key={`${row.id}-${rowNumber}`} className={config.childLevel ? 'cursor-pointer hover:bg-[#fff9ed]' : ''} onClick={isTouchDevice ? () => selectRow(row) : undefined} onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined} title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}>
-              <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] bg-white text-center ${bodyClass}`}>{rowNumber}</td>
-              <td className={`sticky left-[48px] z-10 min-w-[170px] max-w-[220px] bg-white font-bold text-wrap ${bodyClass}`}>{row.name}</td>
+            <tr key={`${row.id}-${rowNumber}`} className={rowClass} onClick={isTouchDevice ? () => selectRow(row) : undefined} onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined} title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}>
+              <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] ${stickyClass} text-center ${bodyClass}`}>{rowNumber}</td>
+              <td className={`sticky left-[48px] z-10 min-w-[170px] max-w-[220px] ${stickyClass} font-bold text-wrap ${bodyClass}`}>{row.name}</td>
               {config.extraKey && <td className={`${bodyClass} text-center`}>{displayValue(row, config.extraKey)}</td>}
               {mode === 'party' && partyColumns.map((party) => (
                 <td key={party.code} className={`${bodyClass} min-w-[76px] text-right`}>{numberValue(row.partyVotes?.[party.code]).toLocaleString('id-ID')}</td>
               ))}
-              <td className={`${bodyClass} min-w-[90px] text-right`}>{displayValue(row, 'dpt')}</td>
-              {mode === 'summary' && <td className={`${bodyClass} min-w-[135px] text-right`}>{displayValue(row, 'suaraSeluruhPartai')}</td>}
-              <td className={`${bodyClass} min-w-[90px] text-right`}>{displayValue(row, 'suaraSah')}</td>
-              <td className={`${bodyClass} min-w-[105px] text-right`}>{displayValue(row, 'suaraTidakSah')}</td>
+              <td className={`${bodyClass} min-w-[90px] text-right tabular-nums whitespace-nowrap`}>{displayValue(row, 'dpt')}</td>
+              {mode === 'summary' && <td className={`${bodyClass} min-w-[135px] text-right tabular-nums whitespace-nowrap`}>{displayValue(row, 'suaraSeluruhPartai')}</td>}
+              <td className={`${bodyClass} min-w-[90px] text-right tabular-nums whitespace-nowrap`}>{displayValue(row, 'suaraSah')}</td>
+              <td className={`${bodyClass} min-w-[105px] text-right tabular-nums whitespace-nowrap pr-4`}>{displayValue(row, 'suaraTidakSah')}</td>
             </tr>
           )
         })}
