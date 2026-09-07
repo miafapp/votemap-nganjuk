@@ -103,19 +103,37 @@ export const api = {
     return normalizePartyRows(rows)
   },
   getRekapWilayahPartaiBatch: async (pemiluId, level, wilayahIds) => {
-    const ids = (Array.isArray(wilayahIds) ? wilayahIds : [])
+    const ids = [...new Set((Array.isArray(wilayahIds) ? wilayahIds : [])
       .map(Number)
-      .filter((id) => Number.isInteger(id) && id > 0)
+      .filter((id) => Number.isInteger(id) && id > 0))]
 
     if (!ids.length) return []
 
-    const rows = await apiFetch('/api/summary/partai/batch', {
+    const rows = normalizePartyRows(await apiFetch('/api/summary/partai/batch', {
       pemilu_id: pemiluId,
       level,
       wilayah_ids: ids.join(','),
-    })
+    }))
 
-    return normalizePartyRows(rows)
+    if (!Array.isArray(rows)) return []
+
+    // Batch adalah jalur utama. Jika Worker hanya mengembalikan sebagian
+    // wilayah, ambil ulang hanya ID yang hilang. Ini mencegah satu row
+    // berubah menjadi 0 hanya karena response batch tidak lengkap.
+    const returnedIds = new Set(
+      rows
+        .map((row) => Number(row?.wilayah_id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+    const missingIds = ids.filter((id) => !returnedIds.has(id))
+
+    if (!missingIds.length) return rows
+
+    const fallbackRows = await Promise.all(
+      missingIds.map((id) => getRekapWilayahPartai(pemiluId, level, id).catch(() => []))
+    )
+
+    return rows.concat(fallbackRows.flat())
   },
   getRekapWilayahPage: (pemiluId, level, parentId, page = 1, limit = 10) => apiFetch('/api/rekap-wilayah', {
     pemilu_id: pemiluId,
