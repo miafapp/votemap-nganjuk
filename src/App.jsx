@@ -361,7 +361,7 @@ function App() {
             dapilId={dapilId}
             desaId={desaId}
             parties={parties}
-            detail={detail}
+            selectedTpsId={tpsId}
             onSelectRegion={handleTableRegionSelect}
           />
         </div>
