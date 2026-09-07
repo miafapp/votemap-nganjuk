@@ -210,6 +210,7 @@ export default function BottomTable({
   const total = filteredRows.length
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const displayRows = filteredRows.slice((page - 1) * limit, page * limit)
+  const displayRowSignature = displayRows.map((row) => `${row._index}:${row._partyLoaded ? '1' : '0'}`).join(',')
   const pageStart = total === 0 ? 0 : (page - 1) * limit + 1
   const pageEnd = Math.min(page * limit, total)
 
@@ -281,6 +282,12 @@ export default function BottomTable({
       return undefined
     }
 
+    const pendingRows = displayRows.filter((row) => !row._partyLoaded)
+    if (!pendingRows.length) {
+      setPartyLoading(false)
+      return undefined
+    }
+
     let cancelled = false
     setPartyLoading(true)
 
@@ -289,7 +296,7 @@ export default function BottomTable({
 
       if (childLevel !== 'tps') {
         try {
-          const enrichedRows = await enrichPartyVotesBatch(displayRows, pemiluId, childLevel)
+          const enrichedRows = await enrichPartyVotesBatch(pendingRows, pemiluId, childLevel)
           if (!cancelled) {
             const enrichedByIndex = new Map(enrichedRows.map((row) => [row._index, row]))
             setRows((current) => current.map((row) => enrichedByIndex.get(row._index) || row))
@@ -299,9 +306,8 @@ export default function BottomTable({
           const worker = async () => {
             while (!cancelled) {
               const index = nextIndex++
-              if (index >= displayRows.length) return
-              const sourceRow = displayRows[index]
-              if (sourceRow._partyLoaded) continue
+              if (index >= pendingRows.length) return
+              const sourceRow = pendingRows[index]
               const enriched = await enrichPartyVotes(sourceRow, pemiluId, childLevel)
               if (cancelled) return
               setRows((current) => current.map((row) => row._index === sourceRow._index ? { ...enriched, _partyLoaded: true } : row))
@@ -314,9 +320,8 @@ export default function BottomTable({
         const worker = async () => {
           while (!cancelled) {
             const index = nextIndex++
-            if (index >= displayRows.length) return
-            const sourceRow = displayRows[index]
-            if (sourceRow._partyLoaded) continue
+            if (index >= pendingRows.length) return
+            const sourceRow = pendingRows[index]
             const enriched = await enrichPartyVotes(sourceRow, pemiluId, childLevel)
             if (cancelled) return
             setRows((current) => current.map((row) => row._index === sourceRow._index ? { ...enriched, _partyLoaded: true } : row))
@@ -333,7 +338,7 @@ export default function BottomTable({
     })
 
     return () => { cancelled = true }
-  }, [tableMode, pemiluId, page, limit, rows.length, config.childLevel, displayRows])
+  }, [tableMode, pemiluId, page, limit, config.childLevel, displayRowSignature])
 
   const selectRow = (row) => {
     if (!config.childLevel) return
