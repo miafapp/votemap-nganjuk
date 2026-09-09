@@ -321,6 +321,7 @@ function App() {
         dapilId={dapilId}
         kecamatanId={kecamatanId}
         desaId={desaId}
+        tpsId={tpsId}
         kecamatanList={kecamatanList}
         onDapilChange={handleDapilChange}
         onKecamatanChange={handleKecamatanChange}
@@ -357,9 +358,6 @@ function App() {
             pemiluId={pemiluId}
             activeLevel={level || 'kabupaten'}
             activeId={levelId}
-            kecamatanList={kecamatanList}
-            dapilId={dapilId}
-            desaId={desaId}
             parties={parties}
             detail={detail}
             onSelectRegion={handleTableRegionSelect}
