@@ -13,7 +13,7 @@ function FilterField({ label, children }) {
   return <label className="grid gap-[5px] font-bold text-xs min-w-0">{label}{children}</label>
 }
 
-export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, kecamatanList = [], onDapilChange, onKecamatanChange, onDesaChange, onTpsChange, refreshDapilToken = 0, refreshDesaToken = 0, refreshTpsToken = 0, onReloadDapil, onReloadKecamatan, onReloadDesa, onReloadTps }) {
+export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, tpsId, kecamatanList = [], onDapilChange, onKecamatanChange, onDesaChange, onTpsChange, refreshDapilToken = 0, refreshDesaToken = 0, refreshTpsToken = 0, onReloadDapil, onReloadKecamatan, onReloadDesa, onReloadTps }) {
   const [dapilList, setDapilList] = useState([])
   const [desaList, setDesaList] = useState([])
   const [tpsList, setTpsList] = useState([])
@@ -82,7 +82,7 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, keca
 
       <FilterField label="Pilih TPS">
         <div className="flex items-center gap-2">
-          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value="" disabled={!desaId || loadingTps} onChange={(e) => onTpsChange(e.target.value ? Number(e.target.value) : null)}>
+          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={tpsId || ''} disabled={!desaId || loadingTps} onChange={(e) => onTpsChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingTps ? 'Memuat...' : 'Semua TPS'}</option>
             {tpsList.map((t) => <option key={t.id} value={t.id}>TPS {t.nomor}</option>)}
           </select>

@@ -1,6 +1,6 @@
 const BASE_URL = 'https://pemilu24.miafapp.workers.dev'
 
-const API_CACHE_TTL_MS = 60_000
+const API_CACHE_TTL_MS = 300_000
 const responseCache = new Map()
 const inFlightRequests = new Map()
 

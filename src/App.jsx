@@ -321,6 +321,7 @@ function App() {
         dapilId={dapilId}
         kecamatanId={kecamatanId}
         desaId={desaId}
+        tpsId={tpsId}
         kecamatanList={kecamatanList}
         onDapilChange={handleDapilChange}
         onKecamatanChange={handleKecamatanChange}
@@ -368,7 +369,7 @@ function App() {
         <div className="flex flex-col gap-4 min-w-0">
           <PartyTable parties={parties} loading={loadingParties} />
           <DetailPanel detail={isSpecificRegion ? detail : null} parties={parties} />
-          <DashboardInfoPanel />
+          <DashboardInfoPanel lastUpdated={lastUpdated} />
         </div>
       </div>
       <Footer />
