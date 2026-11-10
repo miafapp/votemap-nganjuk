@@ -268,26 +268,39 @@ export default function BottomTable({
     setPartyLoading(true)
 
     const enrich = async () => {
-      let nextIndex = 0
-      const worker = async () => {
-        while (!cancelled) {
-          const index = nextIndex++
-          if (index >= source.length) return
-          const sourceRow = source[index]
-          if (sourceRow._partyLoaded) continue
-          const levelForRow = activeLevel === 'tps' ? 'tps' : (sourceRow.raw?.__level || config.childLevel)
-          const enriched = await enrichPartyVotes(sourceRow, pemiluId, levelForRow)
-          if (cancelled) return
-          setRows((current) => current.map((row) => row._index === sourceRow._index ? { ...enriched, _partyLoaded: true } : row))
-        }
-      }
-
       if (activeLevel === 'tps') {
         const enriched = await enrichPartyVotes(source[0], pemiluId, 'tps')
         if (!cancelled) setRows((current) => current.length ? [{ ...enriched, _partyLoaded: true }] : current)
       } else {
+        // Kumpulkan semua hasil enrichment ke array lokal terlebih dahulu,
+        // lalu lakukan satu kali setRows setelah semua worker selesai.
+        // Ini mencegah re-render berulang (N render → 1 render per halaman).
+        const results = []
+        let nextIndex = 0
+
+        const worker = async () => {
+          while (!cancelled) {
+            const index = nextIndex++
+            if (index >= source.length) return
+            const sourceRow = source[index]
+            if (sourceRow._partyLoaded) {
+              results.push(sourceRow)
+              continue
+            }
+            const levelForRow = sourceRow.raw?.__level || config.childLevel
+            const enriched = await enrichPartyVotes(sourceRow, pemiluId, levelForRow)
+            results.push({ ...enriched, _partyLoaded: true })
+          }
+        }
+
         // Dua worker cukup untuk menjaga latency tanpa membuat burst request.
         await Promise.all([worker(), worker()])
+
+        if (!cancelled && results.length) {
+          // Satu kali setRows untuk semua baris yang baru di-enrich.
+          const enrichedMap = new Map(results.map((r) => [r._index, r]))
+          setRows((current) => current.map((row) => enrichedMap.has(row._index) ? enrichedMap.get(row._index) : row))
+        }
       }
       if (!cancelled) setPartyLoading(false)
     }
