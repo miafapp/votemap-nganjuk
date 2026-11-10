@@ -143,17 +143,36 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
   const [error, setError] = useState(null)
   const [selectedBounds, setSelectedBounds] = useState(null)
 
+  const kecamatanLoadedRef = useRef(false)
+  const desaLoadedRef = useRef(false)
+
+  // DAPIL — dimuat saat mount, menentukan loading state awal
   useEffect(() => {
     setLoading(true)
     setError(null)
-    Promise.all([
-      fetch('/geojson/dapil-nganjuk.geojson').then((response) => { if (!response.ok) throw new Error('GeoJSON DAPIL gagal dimuat'); return response.json() }),
-      fetch('/geojson/nganjuk-kecamatan.geojson').then((response) => { if (!response.ok) throw new Error('GeoJSON kecamatan gagal dimuat'); return response.json() }),
-      fetch('/geojson/nganjuk-desa.geojson').then((response) => { if (!response.ok) throw new Error('GeoJSON desa gagal dimuat'); return response.json() }),
-    ])
-      .then(([dapil, kecamatan, desa]) => { setDapilGeoJson(dapil); setKecamatanGeoJson(kecamatan); setDesaGeoJson(desa); setLoading(false) })
+    fetch('/geojson/dapil-nganjuk.geojson')
+      .then((response) => { if (!response.ok) throw new Error('GeoJSON DAPIL gagal dimuat'); return response.json() })
+      .then((dapil) => { setDapilGeoJson(dapil); setLoading(false) })
       .catch((err) => { setError(err.message); setLoading(false) })
   }, [])
+
+  // KECAMATAN — dimuat lazy saat dapilId pertama kali ada
+  useEffect(() => {
+    if (!dapilId || kecamatanLoadedRef.current) return
+    fetch('/geojson/nganjuk-kecamatan.geojson')
+      .then((response) => { if (!response.ok) throw new Error('GeoJSON kecamatan gagal dimuat'); return response.json() })
+      .then((kecamatan) => { kecamatanLoadedRef.current = true; setKecamatanGeoJson(kecamatan) })
+      .catch(() => {})
+  }, [dapilId])
+
+  // DESA — dimuat lazy saat kecamatanId pertama kali ada
+  useEffect(() => {
+    if (!kecamatanId || desaLoadedRef.current) return
+    fetch('/geojson/nganjuk-desa.geojson')
+      .then((response) => { if (!response.ok) throw new Error('GeoJSON desa gagal dimuat'); return response.json() })
+      .then((desa) => { desaLoadedRef.current = true; setDesaGeoJson(desa) })
+      .catch(() => {})
+  }, [kecamatanId])
 
   useEffect(() => {
     if (!desaId || !pemiluId) { setTpsMarkers([]); return }
@@ -185,11 +204,11 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
         : [selectedDesaFeature]
 
   useEffect(() => {
-    if (!dapilGeoJson || !kecamatanGeoJson || !desaGeoJson) return
+    if (!dapilGeoJson) return
     const feature = selectedDesaFeature || selectedKecamatanFeature || selectedDapilFeature
     if (feature?.geometry) { setSelectedBounds(L.geoJSON(feature).getBounds()); return }
     setSelectedBounds(L.geoJSON(dapilGeoJson).getBounds())
-  }, [selectedDapilFeature, selectedKecamatanFeature, selectedDesaFeature, dapilGeoJson, kecamatanGeoJson, desaGeoJson])
+  }, [selectedDapilFeature, selectedKecamatanFeature, selectedDesaFeature, dapilGeoJson])
 
   const bindRegionInteraction = (feature, layer, level, levelLabel, idKey, onSelect) => {
     const name = getFeatureName(feature, level === 'dapil' ? ['nama', 'dapil'] : level === 'kecamatan' ? ['kecamatan', 'nama'] : ['desa', 'nama'])
