@@ -29,27 +29,27 @@ export default function Header({ pemiluId, onPemiluChange, lastUpdated }) {
   }, [])
 
   return (
-    <header className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-[#d8c9b3] px-3">
+    <header className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-divider px-3">
       <div className="flex items-center gap-4">
         <img src="/images/favicon.png" alt="VoteMap Nganjuk" className="w-14 h-14 object-contain" />
         <div>
           <h1 className="m-0 font-bold text-[clamp(22px,3vw,34px)] leading-[1.05] [font-family:Georgia,serif]">Vote Map Kabupaten Nganjuk</h1>
-          <p className="text-[#c4482a] mt-1 text-[15px] font-semibold m-0">Pemilihan Umum Anggota DPRD Kabupaten Nganjuk</p>
+          <p className="text-primary mt-1 text-[15px] font-semibold m-0">Pemilihan Umum Anggota DPRD Kabupaten Nganjuk</p>
         </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-stretch sm:items-center w-full lg:w-auto">
         <div className="grid gap-[3px] px-4 py-[7px] min-w-[190px] w-full sm:w-auto">
-          <span className="text-xs text-[#82776e]">Tahun Pemilihan Umum</span>
-          <select className="text-[15px] border border-[#e4d9c7] rounded-md px-3 py-2 bg-[#fffdf8] text-[#332e29] cursor-pointer disabled:opacity-50" value={pemiluId || ''} disabled={loadingPemilu} onChange={(e) => onPemiluChange(e.target.value ? Number(e.target.value) : null)}>
+          <span className="text-xs text-muted">Tahun Pemilihan Umum</span>
+          <select className="text-[15px] border border-card-border rounded-md px-3 py-2 bg-surface text-main cursor-pointer disabled:opacity-50" value={pemiluId || ''} disabled={loadingPemilu} onChange={(e) => onPemiluChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingPemilu ? 'Memuat...' : 'Pilih Tahun...'}</option>
             {pemiluList.map((p) => <option key={p.id} value={p.id}>{p.tahun}</option>)}
           </select>
         </div>
 
-        <div className="grid gap-[3px] px-4 py-[7px] min-w-[240px] border-l-2 border-[#bfa98e] w-full sm:w-auto">
-          <span className="text-xs text-[#82776e]">Status data terakhir diperbarui</span>
-          <strong className="text-[15px] font-semibold text-[#332e29] leading-10 whitespace-nowrap">
+        <div className="grid gap-[3px] px-4 py-[7px] min-w-[240px] border-l-2 border-accent-border w-full sm:w-auto">
+          <span className="text-xs text-muted">Status data terakhir diperbarui</span>
+          <strong className="text-[15px] font-semibold text-main leading-10 whitespace-nowrap">
             {formatUpdatedAt(lastUpdated)}
           </strong>
         </div>
