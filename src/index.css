@@ -1,9 +1,41 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
+@theme {
+  /* Brand / Primary */
+  --color-primary: #c4482a;
+  --color-primary-hover: #b03d22;
+  --color-primary-active: #a93b22;
+  --color-primary-shadow: #9f321d;
+  --color-primary-header: #8d4838;
+
+  /* Surfaces & Backgrounds */
+  --color-canvas: #fbf7f0;
+  --color-canvas-accent: #fff9e9;
+  --color-surface: #fffdf8;
+  --color-surface-warm: #fff9ed;
+  --color-surface-hover: #fff3df;
+
+  /* Borders & Dividers */
+  --color-card-border: #e4d9c7;
+  --color-table-border: #ecdfcb;
+  --color-subtle-border: #eadfce;
+  --color-light-border: #eee3d1;
+  --color-divider: #d8c9b3;
+  --color-accent-border: #bfa98e;
+  --color-control-border: #cfc5b6;
+
+  /* Typography & Content */
+  --color-main: #332e29;
+  --color-secondary: #5f554c;
+  --color-subtle: #6f6259;
+  --color-muted: #82776e;
+  --color-icon: #7d6f64;
+}
+
 :root {
   font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
-  color: #332e29;
+  color: var(--color-main);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -14,7 +46,7 @@
 body {
   margin: 0;
   min-width: 320px;
-  background: #fbf7f0;
+  background: var(--color-canvas);
 }
 
 button, select, input { font: inherit; }
@@ -31,7 +63,7 @@ button, select, input { font: inherit; }
   width: 34px;
   height: 22px;
   border-radius: 11px;
-  background: #c4482a;
+  background: var(--color-primary);
   color: #fff;
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
@@ -78,17 +110,17 @@ button, select, input { font: inherit; }
   width: 38px;
   height: 38px;
   padding: 0;
-  border: 1px solid #cfc5b6;
+  border: 1px solid var(--color-control-border);
   border-radius: 8px;
-  background: #fffdf8;
-  color: #332e29;
+  background: var(--color-surface);
+  color: var(--color-main);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   font: 700 18px/1 'Trebuchet MS', 'Segoe UI', sans-serif;
   cursor: pointer;
 }
 
 .map-floating-controls button:hover {
-  background: #f4eadf;
+  background: var(--color-surface-hover);
 }
 
 .map-floating-controls button:active {
@@ -96,7 +128,7 @@ button, select, input { font: inherit; }
 }
 
 .map-floating-controls button:focus-visible {
-  outline: 2px solid #c4482a;
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -131,7 +163,7 @@ button, select, input { font: inherit; }
 }
 
 .region-popup__info span {
-  color: #756b62;
+  color: var(--color-muted);
   font-size: 11px;
 }
 
@@ -139,7 +171,7 @@ button, select, input { font: inherit; }
   flex: 0 0 auto;
   border: 0;
   border-radius: 6px;
-  background: #c4482a;
+  background: var(--color-primary);
   color: #fff;
   padding: 7px 10px;
   font-size: 11px;
@@ -148,12 +180,12 @@ button, select, input { font: inherit; }
 }
 
 .region-popup__select:hover {
-  background: #a93b22;
+  background: var(--color-primary-active);
 }
 
 .region-popup__select:focus-visible,
 .tps-popup__route:focus-visible {
-  outline: 2px solid #c4482a;
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -202,14 +234,14 @@ button, select, input { font: inherit; }
   width: 38px;
   height: 38px;
   border-radius: 7px;
-  background: #c4482a;
+  background: var(--color-primary);
   color: #fff;
   text-decoration: none;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
 .tps-popup__route:hover {
-  background: #a93b22;
+  background: var(--color-primary-active);
 }
 
 .tps-popup__route svg {
@@ -235,17 +267,17 @@ button, select, input { font: inherit; }
 
 .regional-table th,
 .regional-table td {
-  border-right: 1px solid #ecdfcb;
-  border-bottom: 1px solid #ecdfcb;
+  border-right: 1px solid var(--color-table-border);
+  border-bottom: 1px solid var(--color-table-border);
 }
 
 .regional-table th:first-child,
 .regional-table td:first-child {
-  border-left: 1px solid #ecdfcb;
+  border-left: 1px solid var(--color-table-border);
 }
 
 .regional-table thead tr:first-child th {
-  border-top: 1px solid #ecdfcb;
+  border-top: 1px solid var(--color-table-border);
 }
 
 @media (max-width: 640px) {

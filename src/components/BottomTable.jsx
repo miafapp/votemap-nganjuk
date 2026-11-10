@@ -136,8 +136,8 @@ async function loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamat
   return []
 }
 
-const cellClass = 'border border-[#ecdfcb]'
-const headerClass = `${cellClass} bg-[#fff9ed] px-3 py-2 text-center font-bold text-[#8d4838] align-middle`
+const cellClass = 'border border-table-border'
+const headerClass = `${cellClass} bg-surface-warm px-3 py-2 text-center font-bold text-primary-header align-middle`
 const bodyClass = `${cellClass} px-3 py-2 align-middle`
 
 export default function BottomTable({
@@ -328,17 +328,17 @@ export default function BottomTable({
   const renderStateRows = (colSpan, mode) => {
     const modeLoading = mode === 'party' && partyLoading
     if (loading || modeLoading) {
-      return <tbody><tr><td colSpan={colSpan} className={`${bodyClass} px-3 py-8 text-center text-[#82776e]`}>Memuat rekap wilayah...</td></tr></tbody>
+      return <tbody><tr><td colSpan={colSpan} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Memuat rekap wilayah...</td></tr></tbody>
     }
     if (error) return <tbody><tr><td colSpan={colSpan} className={`${bodyClass} px-3 py-8 text-center text-red-600`}>{error}</td></tr></tbody>
-    if (displayRows.length === 0) return <tbody><tr><td colSpan={colSpan} className={`${bodyClass} px-3 py-8 text-center text-[#82776e]`}>{search ? 'Wilayah yang dicari tidak ditemukan.' : 'Tidak ada data rekap pada konteks ini.'}</td></tr></tbody>
+    if (displayRows.length === 0) return <tbody><tr><td colSpan={colSpan} className={`${bodyClass} px-3 py-8 text-center text-muted`}>{search ? 'Wilayah yang dicari tidak ditemukan.' : 'Tidak ada data rekap pada konteks ini.'}</td></tr></tbody>
 
     return (
       <tbody>
         {displayRows.map((row, index) => {
           const rowNumber = (page - 1) * limit + index + 1
           return (
-            <tr key={`${row.id}-${rowNumber}`} className={config.childLevel ? 'cursor-pointer hover:bg-[#fff9ed]' : ''} onClick={isTouchDevice ? () => selectRow(row) : undefined} onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined} title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}>
+            <tr key={`${row.id}-${rowNumber}`} className={config.childLevel ? 'cursor-pointer hover:bg-surface-warm' : ''} onClick={isTouchDevice ? () => selectRow(row) : undefined} onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined} title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}>
               <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] bg-white text-center ${bodyClass}`}>{rowNumber}</td>
               <td className={`sticky left-[48px] z-10 min-w-[170px] max-w-[220px] bg-white font-bold text-wrap ${bodyClass}`}>{row.name}</td>
               {config.extraKey && <td className={`${bodyClass} text-center`}>{displayValue(row, config.extraKey)}</td>}
@@ -400,45 +400,45 @@ export default function BottomTable({
   )
 
   return (
-    <section className="w-full min-w-0 overflow-hidden rounded-lg border border-[#e4d9c7] bg-[rgba(255,253,247,0.8)] shadow-sm">
+    <section className="w-full min-w-0 overflow-hidden rounded-lg border border-card-border bg-surface/80 shadow-sm">
       <div className="px-4 pt-3 pb-2">
         <div className="flex items-start gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="shrink-0 text-[#c4482a] text-xl">♟</span>
+            <span className="shrink-0 text-primary text-xl">♟</span>
             <h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Data Perolehan Suara per Wilayah</h2>
           </div>
         </div>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="order-2 flex justify-start sm:order-1">
-            <div className="inline-flex shrink-0 rounded border border-[#e4d9c7] bg-[#fffdf8] p-0.5" role="group" aria-label="Mode tampilan tabel">
-              <button type="button" onClick={() => setTableMode('summary')} className={`rounded px-3 py-1.5 text-xs ${tableMode === 'summary' ? 'bg-[#c4482a] text-white' : 'text-[#6f6259] hover:bg-[#fff3df]'}`}>Ringkasan Wilayah</button>
-              <button type="button" onClick={() => setTableMode('party')} className={`rounded px-3 py-1.5 text-xs ${tableMode === 'party' ? 'bg-[#c4482a] text-white' : 'text-[#6f6259] hover:bg-[#fff3df]'}`}>Perolehan Partai</button>
+            <div className="inline-flex shrink-0 rounded border border-card-border bg-surface p-0.5" role="group" aria-label="Mode tampilan tabel">
+              <button type="button" onClick={() => setTableMode('summary')} className={`rounded px-3 py-1.5 text-xs ${tableMode === 'summary' ? 'bg-primary text-white' : 'text-subtle hover:bg-surface-hover'}`}>Ringkasan Wilayah</button>
+              <button type="button" onClick={() => setTableMode('party')} className={`rounded px-3 py-1.5 text-xs ${tableMode === 'party' ? 'bg-primary text-white' : 'text-subtle hover:bg-surface-hover'}`}>Perolehan Partai</button>
             </div>
           </div>
           <label className="order-1 relative block w-full sm:order-2 sm:w-[260px]">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7d6f64]">⌕</span>
-            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari wilayah..." className="w-full rounded border border-[#e4d9c7] bg-[#fffdf8] py-2 pl-8 pr-3 text-xs outline-none focus:border-[#c4482a]" />
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-icon">⌕</span>
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari wilayah..." className="w-full rounded border border-card-border bg-surface py-2 pl-8 pr-3 text-xs outline-none focus:border-primary" />
           </label>
         </div>
-        <div className="pt-2 text-xs text-[#82776e]"><strong>(Kecamatan - Desa/Kelurahan - TPS)</strong></div>
+        <div className="pt-2 text-xs text-muted"><strong>(Kecamatan - Desa/Kelurahan - TPS)</strong></div>
       </div>
 
       <div className="min-w-0 px-3 pb-3">
-        <div className="regional-table-scroll w-full max-w-full min-w-0 max-h-[520px] overflow-auto border border-[#ecdfcb]">
+        <div className="regional-table-scroll w-full max-w-full min-w-0 max-h-[520px] overflow-auto border border-table-border">
           {tableMode === 'party' ? renderPartyTable() : renderSummaryTable()}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#ecdfcb] px-4 py-3 text-xs text-[#6f6259]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-table-border px-4 py-3 text-xs text-subtle">
         <div className="flex items-center gap-2">Baris {pageStart}-{pageEnd} dari {total} <span>Per halaman</span>
-          <select value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="rounded border border-[#e4d9c7] bg-white px-2 py-1.5">
+          <select value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="rounded border border-card-border bg-white px-2 py-1.5">
             {[10, 20, 50].map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded border border-[#e4d9c7] px-2.5 py-1.5 disabled:opacity-40">Sebelumnya</button>
-          <span className="font-medium text-[#332e29]">Halaman {page} / {totalPages}</span>
-          <button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="rounded border border-[#e4d9c7] px-2.5 py-1.5 disabled:opacity-40">Berikutnya</button>
+          <button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded border border-card-border px-2.5 py-1.5 disabled:opacity-40">Sebelumnya</button>
+          <span className="font-medium text-main">Halaman {page} / {totalPages}</span>
+          <button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="rounded border border-card-border px-2.5 py-1.5 disabled:opacity-40">Berikutnya</button>
         </div>
       </div>
     </section>

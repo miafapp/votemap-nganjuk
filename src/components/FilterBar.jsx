@@ -3,7 +3,7 @@ import { api } from '../lib/api'
 
 function ReloadButton({ label, onClick, disabled }) {
   return (
-    <button type="button" title={label} aria-label={label} onClick={onClick} disabled={disabled} className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-md border-0 bg-[#c4482a] text-white shadow-[0_3px_0_#9f321d] hover:bg-[#b03d22] disabled:opacity-40 disabled:cursor-not-allowed">
+    <button type="button" title={label} aria-label={label} onClick={onClick} disabled={disabled} className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-md border-0 bg-primary text-white shadow-[0_3px_0_var(--color-primary-shadow)] hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed">
       ↻
     </button>
   )
@@ -49,10 +49,10 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, tpsI
   }, [desaId, pemiluId, refreshTpsToken])
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.15fr] gap-5 items-end my-4 p-4 border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.72)] shadow-sm">
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.15fr] gap-5 items-end my-4 p-4 border border-card-border rounded-lg bg-surface/72 shadow-sm">
       <FilterField label="Pilih DAPIL">
         <div className="flex items-center gap-2">
-          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={dapilId || ''} disabled={!pemiluId || loadingDapil} onChange={(e) => onDapilChange(e.target.value ? Number(e.target.value) : null)}>
+          <select className="min-w-0 flex-1 appearance-none border border-card-border rounded-md px-3 py-2 text-muted bg-surface cursor-pointer disabled:opacity-50" value={dapilId || ''} disabled={!pemiluId || loadingDapil} onChange={(e) => onDapilChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingDapil ? 'Memuat...' : 'Semua DAPIL'}</option>
             {dapilList.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
           </select>
@@ -62,7 +62,7 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, tpsI
 
       <FilterField label="Pilih Kecamatan">
         <div className="flex items-center gap-2">
-          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={kecamatanId || ''} disabled={!pemiluId || !kecamatanList.length} onChange={(e) => onKecamatanChange(e.target.value ? Number(e.target.value) : null)}>
+          <select className="min-w-0 flex-1 appearance-none border border-card-border rounded-md px-3 py-2 text-muted bg-surface cursor-pointer disabled:opacity-50" value={kecamatanId || ''} disabled={!pemiluId || !kecamatanList.length} onChange={(e) => onKecamatanChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">Semua Kecamatan</option>
             {kecamatanList.map((k) => <option key={k.id} value={k.id}>{k.nama || k.kecamatan}</option>)}
           </select>
@@ -72,7 +72,7 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, tpsI
 
       <FilterField label="Pilih Desa / Kelurahan">
         <div className="flex items-center gap-2">
-          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={desaId || ''} disabled={!kecamatanId || loadingDesa} onChange={(e) => onDesaChange(e.target.value ? Number(e.target.value) : null)}>
+          <select className="min-w-0 flex-1 appearance-none border border-card-border rounded-md px-3 py-2 text-muted bg-surface cursor-pointer disabled:opacity-50" value={desaId || ''} disabled={!kecamatanId || loadingDesa} onChange={(e) => onDesaChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingDesa ? 'Memuat...' : 'Semua Desa / Kelurahan'}</option>
             {desaList.map((d) => <option key={d.id} value={d.id}>{d.nama || d.desa}</option>)}
           </select>
@@ -82,7 +82,7 @@ export default function FilterBar({ pemiluId, dapilId, kecamatanId, desaId, tpsI
 
       <FilterField label="Pilih TPS">
         <div className="flex items-center gap-2">
-          <select className="min-w-0 flex-1 appearance-none border border-[#e4d9c7] rounded-md px-3 py-2 text-[#82776e] bg-[#fffdf8] cursor-pointer disabled:opacity-50" value={tpsId || ''} disabled={!desaId || loadingTps} onChange={(e) => onTpsChange(e.target.value ? Number(e.target.value) : null)}>
+          <select className="min-w-0 flex-1 appearance-none border border-card-border rounded-md px-3 py-2 text-muted bg-surface cursor-pointer disabled:opacity-50" value={tpsId || ''} disabled={!desaId || loadingTps} onChange={(e) => onTpsChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingTps ? 'Memuat...' : 'Semua TPS'}</option>
             {tpsList.map((t) => <option key={t.id} value={t.id}>TPS {t.nomor}</option>)}
           </select>

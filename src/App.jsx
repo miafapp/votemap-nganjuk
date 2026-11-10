@@ -310,7 +310,7 @@ function App() {
   }
 
   return (
-    <main className="max-w-[1440px] mx-auto min-h-screen px-6 py-6 text-[#332e29] bg-[radial-gradient(circle_at_92%_8%,#fff9e9_0,transparent_25%),#fbf7f0]">
+    <main className="max-w-[1440px] mx-auto min-h-screen px-6 py-6 text-main bg-[radial-gradient(circle_at_92%_8%,var(--color-canvas-accent)_0,transparent_25%),var(--color-canvas)]">
       <Header
         pemiluId={pemiluId}
         onPemiluChange={handlePemiluChange}

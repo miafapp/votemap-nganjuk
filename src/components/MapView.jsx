@@ -261,10 +261,10 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
   const onEachDesa = (feature, layer) => bindRegionInteraction(feature, layer, 'desa', 'Desa / Kelurahan', 'desa_id', onDesaClick)
 
   return (
-    <section className="border border-[#e4d9c7] rounded-lg bg-[rgba(255,253,247,0.8)] shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 py-3"><span className="text-[#c4482a] text-xl">◆</span><h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Peta Wilayah Kabupaten Nganjuk</h2></div>
+    <section className="border border-card-border rounded-lg bg-surface/80 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 py-3"><span className="text-primary text-xl">◆</span><h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Peta Wilayah Kabupaten Nganjuk</h2></div>
       <div className="px-4 pb-5">
-        {loading ? <div className="flex items-center justify-center h-[520px] text-[#82776e] text-sm">Memuat peta...</div> : error ? <div className="flex items-center justify-center h-[520px] text-red-600 text-sm">{error}</div> : (
+        {loading ? <div className="flex items-center justify-center h-[520px] text-muted text-sm">Memuat peta...</div> : error ? <div className="flex items-center justify-center h-[520px] text-red-600 text-sm">{error}</div> : (
           <div className="map-shell">
             <MapContainer center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM} style={{ height: MAP_HEIGHT, width: '100%' }} className="rounded-lg" zoomControl={false} scrollWheelZoom={false} doubleClickZoom={false} touchZoom={false}>
               <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
