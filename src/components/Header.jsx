@@ -33,8 +33,8 @@ export default function Header({ pemiluId, onPemiluChange, lastUpdated }) {
       <div className="flex items-center gap-4">
         <img src="/images/favicon.png" alt="VoteMap Nganjuk" className="w-14 h-14 object-contain" />
         <div>
-          <h1 className="m-0 font-bold text-[clamp(22px,3vw,34px)] leading-[1.05] [font-family:Georgia,serif]">Vote Map Kabupaten Nganjuk</h1>
-          <p className="text-primary mt-1 text-[15px] font-semibold m-0">Pemilihan Umum Anggota DPRD Kabupaten Nganjuk</p>
+          <h1 className="m-0 font-extrabold text-[clamp(20px,2.5vw,32px)] leading-tight tracking-tight">Vote Map Kabupaten Nganjuk</h1>
+          <p className="text-primary mt-1 text-[14px] sm:text-[15px] font-semibold m-0">Pemilihan Umum Anggota DPRD Kabupaten Nganjuk</p>
         </div>
       </div>
 

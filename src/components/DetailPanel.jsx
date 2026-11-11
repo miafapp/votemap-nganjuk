@@ -14,7 +14,7 @@ export default function DetailPanel({ detail, parties }) {
     <section className="border border-card-border rounded-lg bg-surface/80 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3">
         <span className="text-primary text-xl">●</span>
-        <h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Detail Wilayah</h2>
+        <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Detail Wilayah</h2>
       </div>
       {!hasDetail ? (
         <div className="px-4 pb-4">
@@ -26,17 +26,17 @@ export default function DetailPanel({ detail, parties }) {
         <div className="px-4 pb-4 space-y-3">
           <div className="grid grid-cols-2 gap-2 text-sm">
             {detail.nama && <div><span className="text-muted text-xs">Wilayah:</span><br /><strong>{detail.nama}</strong></div>}
-            {detail.dpt !== undefined && <div><span className="text-muted text-xs">DPT:</span><br /><strong>{detail.dpt?.toLocaleString('id-ID')}</strong></div>}
-            {detail.suara_sah !== undefined && <div><span className="text-muted text-xs">Suara Sah:</span><br /><strong>{detail.suara_sah?.toLocaleString('id-ID')}</strong></div>}
-            {detail.suara_tidak_sah !== undefined && <div><span className="text-muted text-xs">Suara Tidak Sah:</span><br /><strong>{detail.suara_tidak_sah?.toLocaleString('id-ID')}</strong></div>}
-            {detail.jumlah_tps !== undefined && <div><span className="text-muted text-xs">Jumlah TPS:</span><br /><strong>{detail.jumlah_tps}</strong></div>}
-            {detail.jumlah_desa !== undefined && <div><span className="text-muted text-xs">Jumlah Desa:</span><br /><strong>{detail.jumlah_desa}</strong></div>}
-            {detail.jumlah_kecamatan !== undefined && <div><span className="text-muted text-xs">Jumlah Kecamatan:</span><br /><strong>{detail.jumlah_kecamatan}</strong></div>}
+            {detail.dpt !== undefined && <div><span className="text-muted text-xs">DPT:</span><br /><strong className="tabular-nums">{detail.dpt?.toLocaleString('id-ID')}</strong></div>}
+            {detail.suara_sah !== undefined && <div><span className="text-muted text-xs">Suara Sah:</span><br /><strong className="tabular-nums">{detail.suara_sah?.toLocaleString('id-ID')}</strong></div>}
+            {detail.suara_tidak_sah !== undefined && <div><span className="text-muted text-xs">Suara Tidak Sah:</span><br /><strong className="tabular-nums">{detail.suara_tidak_sah?.toLocaleString('id-ID')}</strong></div>}
+            {detail.jumlah_tps !== undefined && <div><span className="text-muted text-xs">Jumlah TPS:</span><br /><strong className="tabular-nums">{detail.jumlah_tps}</strong></div>}
+            {detail.jumlah_desa !== undefined && <div><span className="text-muted text-xs">Jumlah Desa:</span><br /><strong className="tabular-nums">{detail.jumlah_desa}</strong></div>}
+            {detail.jumlah_kecamatan !== undefined && <div><span className="text-muted text-xs">Jumlah Kecamatan:</span><br /><strong className="tabular-nums">{detail.jumlah_kecamatan}</strong></div>}
           </div>
 
           {chartData.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-sm font-bold text-muted mb-2">Perolehan Suara Partai</h3>
+              <h3 className="text-sm font-semibold text-muted mb-2">Perolehan Suara Partai</h3>
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>

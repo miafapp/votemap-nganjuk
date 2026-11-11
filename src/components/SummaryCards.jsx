@@ -17,7 +17,7 @@ export default function SummaryCards({ detail, loading }) {
     <section className="border border-card-border rounded-lg bg-surface/80 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3">
         <span className="text-primary text-xl">▥</span>
-        <h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Ringkasan Suara</h2>
+        <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Ringkasan Suara</h2>
       </div>
       <div className="grid gap-3 px-4 pb-4">
         {loading ? (
@@ -30,7 +30,7 @@ export default function SummaryCards({ detail, loading }) {
               <span className="text-primary text-2xl w-9 text-center">{s.icon}</span>
               <div>
                 <small className="block text-xs text-muted">{s.label}</small>
-                <strong className="block font-bold text-xl [font-family:Georgia,serif] mt-0.5">
+                <strong className="block font-bold text-xl sm:text-2xl tracking-tight tabular-nums mt-0.5">
                   {typeof s.value === 'number' ? s.value.toLocaleString('id-ID') : s.value}
                 </strong>
               </div>

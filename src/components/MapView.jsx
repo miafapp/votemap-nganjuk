@@ -262,7 +262,7 @@ export default function MapView({ pemiluId, dapilId, kecamatanId, desaId, tpsId,
 
   return (
     <section className="border border-card-border rounded-lg bg-surface/80 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 py-3"><span className="text-primary text-xl">◆</span><h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Peta Wilayah Kabupaten Nganjuk</h2></div>
+      <div className="flex items-center gap-2.5 px-4 py-3"><span className="text-primary text-xl">◆</span><h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Peta Wilayah Kabupaten Nganjuk</h2></div>
       <div className="px-4 pb-5">
         {loading ? <div className="flex items-center justify-center h-[520px] text-muted text-sm">Memuat peta...</div> : error ? <div className="flex items-center justify-center h-[520px] text-red-600 text-sm">{error}</div> : (
           <div className="map-shell">
