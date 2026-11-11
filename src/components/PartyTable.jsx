@@ -11,7 +11,7 @@ export default function PartyTable({ parties, totalSuara, loading }) {
     <section className="border border-card-border rounded-lg bg-surface/80 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3">
         <span className="text-primary text-xl">⚑</span>
-        <h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Top 10 Partai Politik</h2>
+        <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Top 10 Partai Politik</h2>
       </div>
       <div className="px-3 pb-4 text-xs">
         <div className="grid grid-cols-[28px_1fr_70px_45px] items-center gap-[5px] px-2 py-2 bg-primary text-white font-bold rounded-t-md">
@@ -27,13 +27,13 @@ export default function PartyTable({ parties, totalSuara, loading }) {
         ) : (
           topParties.map((party, index) => (
             <div key={party.partai_id || party.kode_partai || index} className="grid grid-cols-[28px_1fr_70px_45px] items-center gap-[5px] px-2 py-2 border-b border-subtle-border">
-              <span>{index + 1}</span>
+              <span className="tabular-nums">{index + 1}</span>
               <span className="flex items-center gap-1.5 min-w-0">
                 <img src={getPartyLogo(party.kode_partai)} alt={party.nama_partai} className="w-[22px] h-[22px] shrink-0 rounded-sm object-cover" />
                 <span className="break-words">{party.nama_partai}</span>
               </span>
-              <span className="text-right">{(Number(party.jumlah_suara) || 0).toLocaleString('id-ID')}</span>
-              <span className="text-right">
+              <span className="text-right tabular-nums">{(Number(party.jumlah_suara) || 0).toLocaleString('id-ID')}</span>
+              <span className="text-right tabular-nums">
                 {total > 0 ? (((Number(party.jumlah_suara) || 0) / total) * 100).toFixed(2).replace('.', ',') : '0,00'}%
               </span>
             </div>

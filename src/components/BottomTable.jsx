@@ -339,16 +339,16 @@ export default function BottomTable({
           const rowNumber = (page - 1) * limit + index + 1
           return (
             <tr key={`${row.id}-${rowNumber}`} className={config.childLevel ? 'cursor-pointer hover:bg-surface-warm' : ''} onClick={isTouchDevice ? () => selectRow(row) : undefined} onDoubleClick={!isTouchDevice ? () => selectRow(row) : undefined} title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}>
-              <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] bg-white text-center ${bodyClass}`}>{rowNumber}</td>
+              <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] bg-white text-center tabular-nums ${bodyClass}`}>{rowNumber}</td>
               <td className={`sticky left-[48px] z-10 min-w-[170px] max-w-[220px] bg-white font-bold text-wrap ${bodyClass}`}>{row.name}</td>
               {config.extraKey && <td className={`${bodyClass} text-center`}>{displayValue(row, config.extraKey)}</td>}
               {mode === 'party' && partyColumns.map((party) => (
-                <td key={party.code} className={`${bodyClass} min-w-[76px] text-right`}>{numberValue(row.partyVotes?.[party.code]).toLocaleString('id-ID')}</td>
+                <td key={party.code} className={`${bodyClass} min-w-[76px] text-right tabular-nums`}>{numberValue(row.partyVotes?.[party.code]).toLocaleString('id-ID')}</td>
               ))}
-              <td className={`${bodyClass} min-w-[90px] text-right`}>{displayValue(row, 'dpt')}</td>
-              {mode === 'summary' && <td className={`${bodyClass} min-w-[135px] text-right`}>{displayValue(row, 'suaraSeluruhPartai')}</td>}
-              <td className={`${bodyClass} min-w-[90px] text-right`}>{displayValue(row, 'suaraSah')}</td>
-              <td className={`${bodyClass} min-w-[105px] text-right`}>{displayValue(row, 'suaraTidakSah')}</td>
+              <td className={`${bodyClass} min-w-[90px] text-right tabular-nums`}>{displayValue(row, 'dpt')}</td>
+              {mode === 'summary' && <td className={`${bodyClass} min-w-[135px] text-right tabular-nums`}>{displayValue(row, 'suaraSeluruhPartai')}</td>}
+              <td className={`${bodyClass} min-w-[90px] text-right tabular-nums`}>{displayValue(row, 'suaraSah')}</td>
+              <td className={`${bodyClass} min-w-[105px] text-right tabular-nums`}>{displayValue(row, 'suaraTidakSah')}</td>
             </tr>
           )
         })}
@@ -405,7 +405,7 @@ export default function BottomTable({
         <div className="flex items-start gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <span className="shrink-0 text-primary text-xl">♟</span>
-            <h2 className="m-0 font-bold text-lg [font-family:Georgia,serif]">Data Perolehan Suara per Wilayah</h2>
+            <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Data Perolehan Suara per Wilayah</h2>
           </div>
         </div>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -437,7 +437,7 @@ export default function BottomTable({
         </div>
         <div className="flex items-center gap-2">
           <button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded border border-card-border px-2.5 py-1.5 disabled:opacity-40">Sebelumnya</button>
-          <span className="font-medium text-main">Halaman {page} / {totalPages}</span>
+          <span className="font-medium text-main tabular-nums">Halaman {page} / {totalPages}</span>
           <button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="rounded border border-card-border px-2.5 py-1.5 disabled:opacity-40">Berikutnya</button>
         </div>
       </div>
