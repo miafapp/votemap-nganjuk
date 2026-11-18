@@ -6,11 +6,11 @@ import { getPartyLogo } from '../lib/party-logos'
 // Konfigurasi level hierarki wilayah
 // ---------------------------------------------------------------------------
 const LEVEL_CONFIG = {
-  kabupaten: { childLevel: 'dapil',     nameLabel: 'Dapil',           extraLabel: 'Jml Kecamatan', extraKey: 'kecamatanCount' },
-  dapil:     { childLevel: 'kecamatan', nameLabel: 'Kecamatan',       extraLabel: 'Jml Desa/Kelurahan', extraKey: 'desaCount'  },
-  kecamatan: { childLevel: 'desa',      nameLabel: 'Desa/Kelurahan',  extraLabel: 'Jml TPS',       extraKey: 'tpsCount'      },
-  desa:      { childLevel: 'tps',       nameLabel: 'TPS',             extraLabel: null,            extraKey: null             },
-  tps:       { childLevel: null,        nameLabel: 'TPS',             extraLabel: null,            extraKey: null             },
+  kabupaten: { childLevel: 'dapil',     nameLabel: 'Dapil',          extraLabel: 'Jml Kecamatan',     extraKey: 'kecamatanCount' },
+  dapil:     { childLevel: 'kecamatan', nameLabel: 'Kecamatan',      extraLabel: 'Jml Desa/Kelurahan', extraKey: 'desaCount'      },
+  kecamatan: { childLevel: 'desa',      nameLabel: 'Desa/Kelurahan', extraLabel: 'Jml TPS',           extraKey: 'tpsCount'       },
+  desa:      { childLevel: 'tps',       nameLabel: 'TPS',            extraLabel: null,                extraKey: null             },
+  tps:       { childLevel: null,        nameLabel: 'TPS',            extraLabel: null,                extraKey: null             },
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ function rowMatchesSummary(row, summary) {
 
 async function enrichPartyVotes(row, pemiluId, childLevel) {
   const id = firstDefined(row?.raw || row, [`${childLevel}_id`, 'wilayah_id', 'id'])
-  if (!id) return { ...row, _loadingParty: false }
+  if (!id) return { ...row, _partyLoaded: true }
 
   try {
     const detailPromise = childLevel === 'tps'
@@ -128,9 +128,9 @@ async function enrichPartyVotes(row, pemiluId, childLevel) {
     const detail = childLevel === 'tps' ? (extractArray(detailData)[0] || detailData || {}) : {}
     const baseRaw = row.raw && typeof row.raw === 'object' ? row.raw : row
     const normalized = normalizeRow({ ...baseRaw, ...detail, partai: partyData }, row._index ?? 0, childLevel)
-    return { ...normalized, _loadingParty: false, _index: row._index }
+    return { ...normalized, _partyLoaded: true, _index: row._index }
   } catch {
-    return { ...row, _loadingParty: false }
+    return { ...row, _partyLoaded: true }
   }
 }
 
@@ -148,62 +148,6 @@ async function loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamat
 const cellClass = 'border border-table-border'
 const headerClass = `${cellClass} bg-surface-warm px-3 py-2 text-center font-bold text-primary-header align-middle`
 const bodyClass = `${cellClass} px-3 py-2 align-middle`
-
-// ---------------------------------------------------------------------------
-// Sub-komponen: Tabel Perolehan Partai (transposed)
-// Baris = partai, Kolom = wilayah child
-// ---------------------------------------------------------------------------
-function PartyMatrixTable({ rows, parties, loading, partyLoading, error, activeLevel, isTouchDevice, onSelectRegion }) {
-  const config = LEVEL_CONFIG[activeLevel] || LEVEL_CONFIG.kabupaten
-
-  if (loading) {
-    return <tbody><tr><td colSpan={2 + (rows.length || 1)} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Memuat data perolehan partai...</td></tr></tbody>
-  }
-  if (error) {
-    return <tbody><tr><td colSpan={2 + (rows.length || 1)} className={`${bodyClass} px-3 py-8 text-center text-red-600`}>{error}</td></tr></tbody>
-  }
-  if (!parties.length) {
-    return <tbody><tr><td colSpan={2} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Pilih wilayah untuk melihat perolehan partai.</td></tr></tbody>
-  }
-
-  const colCount = 2 + rows.length
-
-  return (
-    <tbody>
-      {parties.map((party, index) => (
-        <tr key={party.kode_partai || index}>
-          {/* Kolom No. */}
-          <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] bg-white text-center tabular-nums ${bodyClass}`}>{index + 1}</td>
-          {/* Kolom Partai (logo + nama) */}
-          <td className={`sticky left-[48px] z-10 min-w-[150px] max-w-[180px] bg-white ${bodyClass}`}>
-            <span className="flex items-center gap-1.5 min-w-0">
-              <img src={getPartyLogo(party.kode_partai)} alt={party.nama_partai} className="w-[22px] h-[22px] shrink-0 rounded-sm object-cover" />
-              <span className="break-words text-xs">{party.nama_partai}</span>
-            </span>
-          </td>
-          {/* Kolom per wilayah */}
-          {rows.length === 0 ? (
-            <td className={`${bodyClass} min-w-[90px] text-right tabular-nums text-muted`}>—</td>
-          ) : (
-            rows.map((row) => {
-              const votes = numberValue(row.partyVotes?.[party.kode_partai])
-              return (
-                <td
-                  key={row.id}
-                  className={`${bodyClass} min-w-[90px] text-right tabular-nums${config.childLevel ? ' cursor-pointer hover:bg-surface-warm' : ''}`}
-                  onClick={config.childLevel && isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
-                  onDoubleClick={config.childLevel && !isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
-                >
-                  {partyLoading && !row._partyLoaded ? '…' : votes.toLocaleString('id-ID')}
-                </td>
-              )
-            })
-          )}
-        </tr>
-      ))}
-    </tbody>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Komponen utama BottomTable
@@ -230,7 +174,7 @@ export default function BottomTable({
 
   const config = LEVEL_CONFIG[activeLevel] || LEVEL_CONFIG.kabupaten
 
-  // Normalisasi daftar partai dari App.jsx (sorted by nomor_urut)
+  // Normalisasi daftar partai dari App.jsx (sorted by nomor_urut, done in App.jsx)
   const normalizedParties = useMemo(() => (Array.isArray(parties) ? parties : [])
     .map((party) => ({
       ...party,
@@ -244,6 +188,22 @@ export default function BottomTable({
     if (activeLevel !== 'tps' || !detail) return []
     return [normalizeRow({ ...detail, partai: parties }, 0, 'tps')]
   }, [activeLevel, detail, parties])
+
+  // Fallback: derivasi daftar partai dari enriched rows jika normalizedParties kosong
+  // (terjadi ketika API tidak menyediakan summary partai di level kecamatan/desa)
+  const derivedPartyList = useMemo(() => {
+    if (normalizedParties.length > 0) return normalizedParties
+    const partyMap = new Map()
+    const source = activeLevel === 'tps' ? normalizedDetail : rows
+    source.filter((r) => r._partyLoaded).forEach((row) => {
+      Object.keys(row.partyVotes || {}).forEach((code) => {
+        if (code && !partyMap.has(code)) {
+          partyMap.set(code, { kode_partai: code, nama_partai: code, nomor_urut: 999 })
+        }
+      })
+    })
+    return Array.from(partyMap.values()).sort((a, b) => a.kode_partai.localeCompare(b.kode_partai))
+  }, [normalizedParties, rows, normalizedDetail, activeLevel])
 
   // Sumber baris untuk Ringkasan Wilayah (dengan search & pagination)
   const sourceRows = activeLevel === 'tps' ? normalizedDetail : rows
@@ -267,11 +227,13 @@ export default function BottomTable({
     setPage(1)
   }, [activeLevel, activeId, pemiluId, limit, search])
 
-  // Load baris wilayah child
+  // Load baris wilayah child + langsung enrich semua untuk tabel Perolehan Partai.
+  // Digabung dalam satu effect agar tidak ada masalah deps saat rows berubah.
   useEffect(() => {
     if (!pemiluId || activeLevel === 'tps') {
       setRows([])
       setLoading(false)
+      setPartyLoading(false)
       setError(null)
       return undefined
     }
@@ -279,13 +241,17 @@ export default function BottomTable({
     let cancelled = false
     setRows([])
     setLoading(true)
+    setPartyLoading(false)
     setError(null)
 
     const load = async () => {
+      // Langkah 1: Muat daftar child wilayah
       const sourceRows = await loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamatanList, desaId })
       if (cancelled) return
 
       const childLevel = config.childLevel
+
+      // Langkah 2: Muat summary rekap wilayah (DPT, suara sah, dll.)
       let summaryRows = []
       if (childLevel !== 'tps') {
         try {
@@ -296,86 +262,55 @@ export default function BottomTable({
       }
       if (cancelled) return
 
+      // Langkah 3: Susun baris awal (belum ada data partai per wilayah)
       const initialRows = sourceRows.map((row, index) => {
         const summary = summaryRows.find((item) => rowMatchesSummary(row, item))
         const merged = summary ? { ...row, ...summary } : row
-        return { ...normalizeRow(merged, index, row.__level || childLevel), _loadingParty: false, _index: index }
+        return { ...normalizeRow(merged, index, row.__level || childLevel), _partyLoaded: false, _index: index }
       })
+
       setRows(initialRows)
       setLoading(false)
+
+      if (!initialRows.length) return
+
+      // Langkah 4: Enrich semua baris dengan data partai per wilayah (untuk tabel Perolehan Partai)
+      setPartyLoading(true)
+
+      const results = []
+      let nextIndex = 0
+
+      const worker = async () => {
+        while (!cancelled) {
+          const index = nextIndex++
+          if (index >= initialRows.length) return
+          const sourceRow = initialRows[index]
+          const levelForRow = sourceRow.raw?.__level || childLevel
+          const enriched = await enrichPartyVotes(sourceRow, pemiluId, levelForRow)
+          results.push(enriched)
+        }
+      }
+
+      // Dua worker concurrent untuk menjaga latency tanpa burst request
+      await Promise.all([worker(), worker()])
+
+      if (!cancelled && results.length) {
+        const enrichedMap = new Map(results.map((r) => [r._index, r]))
+        setRows((current) => current.map((row) => enrichedMap.has(row._index) ? enrichedMap.get(row._index) : row))
+      }
+      if (!cancelled) setPartyLoading(false)
     }
 
     load().catch((err) => {
       if (cancelled) return
       setRows([])
       setLoading(false)
+      setPartyLoading(false)
       setError(err.message || 'Gagal memuat data tabel rekap wilayah')
     })
 
     return () => { cancelled = true }
   }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, config.childLevel])
-
-  // Enrich data partai untuk tabel Perolehan Partai (transposed)
-  // Hanya enrich baris yang ditampilkan di halaman aktif
-  useEffect(() => {
-    if (!pemiluId || (activeLevel === 'tps' && normalizedDetail.length === 0)) {
-      setPartyLoading(false)
-      return undefined
-    }
-
-    const source = activeLevel === 'tps' ? normalizedDetail : rows
-    if (!source.length) {
-      setPartyLoading(false)
-      return undefined
-    }
-    if (source.every((row) => row._partyLoaded)) {
-      setPartyLoading(false)
-      return undefined
-    }
-
-    let cancelled = false
-    setPartyLoading(true)
-
-    const enrich = async () => {
-      if (activeLevel === 'tps') {
-        const enriched = await enrichPartyVotes(source[0], pemiluId, 'tps')
-        if (!cancelled) setRows((current) => current.length ? [{ ...enriched, _partyLoaded: true }] : current)
-      } else {
-        const results = []
-        let nextIndex = 0
-
-        const worker = async () => {
-          while (!cancelled) {
-            const index = nextIndex++
-            if (index >= source.length) return
-            const sourceRow = source[index]
-            if (sourceRow._partyLoaded) {
-              results.push(sourceRow)
-              continue
-            }
-            const levelForRow = sourceRow.raw?.__level || config.childLevel
-            const enriched = await enrichPartyVotes(sourceRow, pemiluId, levelForRow)
-            results.push({ ...enriched, _partyLoaded: true })
-          }
-        }
-
-        // Dua worker concurrent untuk menjaga latency tanpa burst request
-        await Promise.all([worker(), worker()])
-
-        if (!cancelled && results.length) {
-          const enrichedMap = new Map(results.map((r) => [r._index, r]))
-          setRows((current) => current.map((row) => enrichedMap.has(row._index) ? enrichedMap.get(row._index) : row))
-        }
-      }
-      if (!cancelled) setPartyLoading(false)
-    }
-
-    enrich().catch(() => {
-      if (!cancelled) setPartyLoading(false)
-    })
-
-    return () => { cancelled = true }
-  }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, config.childLevel])
 
   const selectRow = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
@@ -386,14 +321,121 @@ export default function BottomTable({
   const displayValue = (row, key) => numberValue(row[key]).toLocaleString('id-ID')
 
   // ---------------------------------------------------------------------------
-  // Render: Tabel Ringkasan Wilayah (tidak berubah dari versi sebelumnya)
+  // Render: Tabel Perolehan Partai (transposed — baris=partai, kolom=wilayah)
   // ---------------------------------------------------------------------------
-  const renderSummaryStateRows = () => {
+  const renderPartyMatrix = () => {
+    const allRows = activeLevel === 'tps' ? normalizedDetail : rows
+    const partyList = derivedPartyList
+
+    // Kolom wilayah header
+    const regionHeaders = allRows.map((row) => (
+      <th
+        key={row.id}
+        className={`min-w-[90px] max-w-[130px] ${headerClass} text-wrap${config.childLevel ? ' cursor-pointer hover:bg-surface-hover' : ''}`}
+        title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}
+        onClick={config.childLevel && isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
+        onDoubleClick={config.childLevel && !isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
+      >
+        {row.name}
+      </th>
+    ))
+
+    // Kondisi loading/error/kosong
+    let tbody
+    if (loading) {
+      tbody = (
+        <tbody>
+          <tr><td colSpan={2 + Math.max(allRows.length, 1)} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Memuat data wilayah...</td></tr>
+        </tbody>
+      )
+    } else if (error) {
+      tbody = (
+        <tbody>
+          <tr><td colSpan={2 + Math.max(allRows.length, 1)} className={`${bodyClass} px-3 py-8 text-center text-red-600`}>{error}</td></tr>
+        </tbody>
+      )
+    } else if (!allRows.length) {
+      tbody = (
+        <tbody>
+          <tr><td colSpan={2} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Tidak ada data wilayah pada konteks ini.</td></tr>
+        </tbody>
+      )
+    } else if (partyLoading && partyList.length === 0) {
+      // Masih loading enrichment dan belum ada partai yang bisa diturunkan
+      tbody = (
+        <tbody>
+          <tr><td colSpan={2 + allRows.length} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Memuat data perolehan partai...</td></tr>
+        </tbody>
+      )
+    } else if (partyList.length === 0) {
+      tbody = (
+        <tbody>
+          <tr><td colSpan={2 + allRows.length} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Data perolehan partai tidak tersedia untuk konteks ini.</td></tr>
+        </tbody>
+      )
+    } else {
+      tbody = (
+        <tbody>
+          {partyList.map((party, index) => (
+            <tr key={party.kode_partai || index}>
+              {/* Kolom No. */}
+              <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] bg-white text-center tabular-nums ${bodyClass}`}>{index + 1}</td>
+              {/* Kolom Partai (logo + nama) */}
+              <td className={`sticky left-[48px] z-10 min-w-[150px] max-w-[180px] bg-white ${bodyClass}`}>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <img src={getPartyLogo(party.kode_partai)} alt={party.nama_partai} className="w-[22px] h-[22px] shrink-0 rounded-sm object-cover" />
+                  <span className="break-words text-xs">{party.nama_partai}</span>
+                </span>
+              </td>
+              {/* Kolom per wilayah */}
+              {allRows.map((row) => {
+                const votes = numberValue(row.partyVotes?.[party.kode_partai])
+                return (
+                  <td
+                    key={row.id}
+                    className={`${bodyClass} min-w-[90px] text-right tabular-nums${config.childLevel ? ' cursor-pointer hover:bg-surface-warm' : ''}`}
+                    onClick={config.childLevel && isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
+                    onDoubleClick={config.childLevel && !isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
+                  >
+                    {partyLoading && !row._partyLoaded ? '…' : votes.toLocaleString('id-ID')}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      )
+    }
+
+    return (
+      <table className="regional-table w-max min-w-full border-collapse text-xs">
+        <thead className="sticky top-0 z-20">
+          <tr>
+            <th className={`sticky left-0 z-30 w-[48px] min-w-[48px] ${headerClass} whitespace-nowrap`}>No.</th>
+            <th className={`sticky left-[48px] z-30 min-w-[150px] max-w-[180px] ${headerClass} text-left`}>Partai</th>
+            {allRows.length === 0
+              ? <th className={`min-w-[120px] ${headerClass}`}>—</th>
+              : regionHeaders}
+          </tr>
+        </thead>
+        {tbody}
+      </table>
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Tabel Ringkasan Wilayah (vertikal, tidak berubah)
+  // ---------------------------------------------------------------------------
+  const renderSummaryRows = () => {
     if (loading) {
       return <tbody><tr><td colSpan={6 + (config.extraLabel ? 1 : 0)} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Memuat rekap wilayah...</td></tr></tbody>
     }
-    if (error) return <tbody><tr><td colSpan={6 + (config.extraLabel ? 1 : 0)} className={`${bodyClass} px-3 py-8 text-center text-red-600`}>{error}</td></tr></tbody>
-    if (displayRows.length === 0) return <tbody><tr><td colSpan={6 + (config.extraLabel ? 1 : 0)} className={`${bodyClass} px-3 py-8 text-center text-muted`}>{search ? 'Wilayah yang dicari tidak ditemukan.' : 'Tidak ada data rekap pada konteks ini.'}</td></tr></tbody>
+    if (error) {
+      return <tbody><tr><td colSpan={6 + (config.extraLabel ? 1 : 0)} className={`${bodyClass} px-3 py-8 text-center text-red-600`}>{error}</td></tr></tbody>
+    }
+    if (displayRows.length === 0) {
+      return <tbody><tr><td colSpan={6 + (config.extraLabel ? 1 : 0)} className={`${bodyClass} px-3 py-8 text-center text-muted`}>{search ? 'Wilayah yang dicari tidak ditemukan.' : 'Tidak ada data rekap pada konteks ini.'}</td></tr></tbody>
+    }
 
     return (
       <tbody>
@@ -428,53 +470,9 @@ export default function BottomTable({
           <th className={`min-w-[105px] max-w-[125px] ${headerClass} text-wrap`}>Suara Tdk Sah</th>
         </tr>
       </thead>
-      {renderSummaryStateRows()}
+      {renderSummaryRows()}
     </table>
   )
-
-  // ---------------------------------------------------------------------------
-  // Render: Tabel Perolehan Partai (transposed — partai=baris, wilayah=kolom)
-  // ---------------------------------------------------------------------------
-  const renderPartyMatrixTable = () => {
-    // Gunakan semua rows (bukan hanya displayRows) untuk tampilkan seluruh wilayah
-    const allRows = activeLevel === 'tps' ? normalizedDetail : rows
-
-    return (
-      <table className="regional-table w-max min-w-full border-collapse text-xs">
-        <thead className="sticky top-0 z-20">
-          <tr>
-            <th className={`sticky left-0 z-30 w-[48px] min-w-[48px] ${headerClass} whitespace-nowrap`}>No.</th>
-            <th className={`sticky left-[48px] z-30 min-w-[150px] max-w-[180px] ${headerClass} text-left`}>Partai</th>
-            {allRows.length === 0 ? (
-              <th className={`min-w-[120px] ${headerClass}`}>—</th>
-            ) : (
-              allRows.map((row) => (
-                <th
-                  key={row.id}
-                  className={`min-w-[90px] max-w-[130px] ${headerClass} text-wrap${config.childLevel ? ' cursor-pointer hover:bg-surface-hover' : ''}`}
-                  title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}
-                  onClick={config.childLevel && isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
-                  onDoubleClick={config.childLevel && !isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
-                >
-                  {row.name}
-                </th>
-              ))
-            )}
-          </tr>
-        </thead>
-        <PartyMatrixTable
-          rows={allRows}
-          parties={normalizedParties}
-          loading={loading}
-          partyLoading={partyLoading}
-          error={error}
-          activeLevel={activeLevel}
-          isTouchDevice={isTouchDevice}
-          onSelectRegion={onSelectRegion}
-        />
-      </table>
-    )
-  }
 
   // ---------------------------------------------------------------------------
   // Render utama: dua section terpisah
@@ -484,38 +482,28 @@ export default function BottomTable({
 
       {/* ===== SECTION 1: Perolehan Partai (tabel transposed) ===== */}
       <section className="w-full min-w-0 overflow-hidden rounded-lg border border-card-border bg-surface/80 shadow-sm">
-        <div className="px-4 pt-3 pb-2">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="shrink-0 text-primary text-xl">⚑</span>
-            <div className="min-w-0">
-              <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Data Perolehan Suara per Wilayah</h2>
-              <p className="m-0 text-xs text-muted mt-0.5">Perolehan Partai</p>
-            </div>
-          </div>
+        <div className="flex items-center gap-2.5 px-4 py-3">
+          <span className="shrink-0 text-primary text-xl">⚑</span>
+          <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Perolehan Partai</h2>
+          {partyLoading && <span className="ml-auto text-xs text-muted">Memuat data...</span>}
         </div>
 
         <div className="min-w-0 px-3 pb-3">
           <div className="regional-table-scroll w-full max-w-full min-w-0 max-h-[520px] overflow-auto border border-table-border">
-            {renderPartyMatrixTable()}
+            {renderPartyMatrix()}
           </div>
         </div>
       </section>
 
-      {/* ===== SECTION 2: Ringkasan Wilayah (tabel vertikal, unchanged) ===== */}
+      {/* ===== SECTION 2: Ringkasan Wilayah (tabel vertikal) ===== */}
       <section className="w-full min-w-0 overflow-hidden rounded-lg border border-card-border bg-surface/80 shadow-sm">
         <div className="px-4 pt-3 pb-2">
-          <div className="flex items-start gap-3">
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <span className="shrink-0 text-primary text-xl">♟</span>
-              <div className="min-w-0">
-                <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Data Perolehan Suara per Wilayah</h2>
-                <p className="m-0 text-xs text-muted mt-0.5">Ringkasan Wilayah</p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2.5">
+            <span className="shrink-0 text-primary text-xl">♟</span>
+            <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Ringkasan Wilayah</h2>
           </div>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="pt-2 text-xs text-muted order-2 sm:order-1"><strong>(Kecamatan - Desa/Kelurahan - TPS)</strong></div>
-            <label className="order-1 relative block w-full sm:order-2 sm:w-[260px]">
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <label className="relative block w-full sm:w-[260px]">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-icon">⌕</span>
               <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari wilayah..." className="w-full rounded border border-card-border bg-surface py-2 pl-8 pr-3 text-xs outline-none focus:border-primary" />
             </label>
