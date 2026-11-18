@@ -1,15 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-
-function formatUpdatedAt(value) {
-  if (!value) return 'Belum tersedia'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('id-ID', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
-}
+import { formatUpdatedAt } from '../lib/format'
 
 export default function Header({ pemiluId, onPemiluChange, lastUpdated }) {
   const [pemiluList, setPemiluList] = useState([])
@@ -41,7 +32,8 @@ export default function Header({ pemiluId, onPemiluChange, lastUpdated }) {
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-stretch sm:items-center w-full lg:w-auto">
         <div className="grid gap-[3px] px-4 py-[7px] min-w-[190px] w-full sm:w-auto">
           <span className="text-xs text-muted">Tahun Pemilihan Umum</span>
-          <select className="text-[15px] border border-card-border rounded-md px-3 py-2 bg-surface text-main cursor-pointer disabled:opacity-50" value={pemiluId || ''} disabled={loadingPemilu} onChange={(e) => onPemiluChange(e.target.value ? Number(e.target.value) : null)}>
+          {/* font-size 16px agar iOS Safari tidak auto-zoom saat fokus (threshold 16px) */}
+          <select className="text-[16px] border border-card-border rounded-md px-3 py-2 bg-surface text-main cursor-pointer disabled:opacity-50" value={pemiluId || ''} disabled={loadingPemilu} onChange={(e) => onPemiluChange(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{loadingPemilu ? 'Memuat...' : 'Pilih Tahun...'}</option>
             {pemiluList.map((p) => <option key={p.id} value={p.id}>{p.tahun}</option>)}
           </select>

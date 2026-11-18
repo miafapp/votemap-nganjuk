@@ -45,7 +45,7 @@ export default function DetailPanel({ detail, parties }) {
                     <YAxis 
                       type="category" 
                       dataKey="name" 
-                      tick={{ fontSize: 10, fill: 'var(--color-muted)' }}
+                      tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
                       width={45}
                       tickFormatter={(value) => value}
                     />

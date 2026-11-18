@@ -117,6 +117,7 @@ export const api = {
 
     return normalizePartyRows(rows)
   },
+  // Reserved for future use: paginasi rekap wilayah per halaman dari server
   getRekapWilayahPage: (pemiluId, level, parentId, page = 1, limit = 10) => apiFetch('/api/rekap-wilayah', {
     pemilu_id: pemiluId,
     level,
@@ -124,9 +125,12 @@ export const api = {
     page,
     limit,
   }),
+  // Reserved for future use: total suara seluruh partai tingkat kabupaten
   getSuaraKabupaten: (pemiluId) => apiFetch('/api/suara', { pemilu_id: pemiluId }),
   getSuara: (level, id, pemiluId) => apiFetch(`/api/suara/${level}/${id}`, { pemilu_id: pemiluId }),
+  // Reserved for future use: detail suara per caleg pada suatu wilayah
   getSuaraDetail: (level, id, pemiluId) => apiFetch(`/api/suara/${level}/${id}/detail`, { pemilu_id: pemiluId }),
   getGisTps: (desaId, pemiluId) => apiFetch('/api/gis/tps', { desa_id: desaId, pemilu_id: pemiluId }),
+  // Reserved for future use: rekap detail C1 per TPS
   getRekapTps: (tpsId) => apiFetch(`/api/rekap-tps/${tpsId}`),
 }
