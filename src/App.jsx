@@ -28,18 +28,13 @@ function firstRecord(data) {
   return data || null
 }
 
-function updatedAtFromData(data) {
-  if (Array.isArray(data)) {
-    return data
-      .map((record) => record?.updated_at || record?.last_updated_at || record?.updatedAt)
-      .filter(Boolean)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null
-  }
-  return data?.updated_at || data?.last_updated_at || data?.updatedAt || null
-}
-
-function latestUpdatedAt(records) {
-  return (Array.isArray(records) ? records : [])
+/**
+ * Mengekstrak timestamp terbaru dari satu record atau array record.
+ * Menggabungkan logika updatedAtFromData & latestUpdatedAt menjadi satu fungsi.
+ */
+function latestUpdatedAt(data) {
+  const records = Array.isArray(data) ? data : (data ? [data] : [])
+  return records
     .map((record) => record?.updated_at || record?.last_updated_at || record?.updatedAt)
     .filter(Boolean)
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null
@@ -163,7 +158,7 @@ function App() {
         ])
         if (cancelled) return
         const tpsDetail = firstRecord(detailData)
-        const tpsUpdatedAt = updatedAtFromData(detailData) || updatedAtFromData(partyData)
+        const tpsUpdatedAt = latestUpdatedAt(detailData) || latestUpdatedAt(partyData)
         setDetail(tpsDetail)
         setParties(normalizeParties(partyData))
         if (tpsUpdatedAt) setLastUpdated(tpsUpdatedAt)
@@ -178,7 +173,7 @@ function App() {
         ])
         if (cancelled) return
         const regionDetail = firstRecord(summaryData)
-        const regionUpdatedAt = updatedAtFromData(summaryData) || updatedAtFromData(partyData)
+        const regionUpdatedAt = latestUpdatedAt(summaryData) || latestUpdatedAt(partyData)
         setDetail(regionDetail)
         setParties(normalizeParties(partyData))
         if (regionUpdatedAt) setLastUpdated(regionUpdatedAt)
@@ -195,8 +190,7 @@ function App() {
         const partyRows = await loadKabupatenParties(pemiluId, rows)
         if (cancelled) return
         setParties(normalizeParties(partyRows))
-        const partyUpdatedAt = updatedAtFromData(partyRows)
-        const kabupatenUpdatedAt = latestUpdatedAt(rows) || partyUpdatedAt
+        const kabupatenUpdatedAt = latestUpdatedAt(rows) || latestUpdatedAt(partyRows)
         if (kabupatenUpdatedAt) setLastUpdated(kabupatenUpdatedAt)
       } catch {
         if (cancelled) return
@@ -369,7 +363,7 @@ function App() {
         <div className="flex flex-col gap-4 min-w-0">
           <PartyTable parties={parties} loading={loadingParties} />
           <DetailPanel detail={isSpecificRegion ? detail : null} parties={parties} />
-          <DashboardInfoPanel lastUpdated={lastUpdated} />
+          <DashboardInfoPanel />
         </div>
       </div>
       <Footer />

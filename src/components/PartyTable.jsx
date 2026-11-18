@@ -1,8 +1,8 @@
 import { getPartyLogo } from '../lib/party-logos'
 
-export default function PartyTable({ parties, totalSuara, loading }) {
+export default function PartyTable({ parties, loading }) {
   const safeParties = Array.isArray(parties) ? parties : []
-  const total = Number(totalSuara) || safeParties.reduce((sum, party) => sum + (Number(party?.jumlah_suara) || 0), 0)
+  const total = safeParties.reduce((sum, party) => sum + (Number(party?.jumlah_suara) || 0), 0)
   const topParties = [...safeParties]
     .sort((a, b) => (Number(b?.jumlah_suara) || 0) - (Number(a?.jumlah_suara) || 0))
     .slice(0, 10)

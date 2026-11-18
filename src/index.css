@@ -81,7 +81,7 @@ button, select, input { font: inherit; }
   color: #fff;
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-  font: 700 10px/1 var(--font-sans);
+  font: 700 11px/1 var(--font-sans);
 }
 
 .map-shell {
@@ -178,7 +178,7 @@ button, select, input { font: inherit; }
 
 .region-popup__info span {
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .region-popup__select {
@@ -188,7 +188,7 @@ button, select, input { font: inherit; }
   background: var(--color-primary);
   color: #fff;
   padding: 7px 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -224,7 +224,7 @@ button, select, input { font: inherit; }
   min-width: 0;
   flex-direction: column;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
 }
 

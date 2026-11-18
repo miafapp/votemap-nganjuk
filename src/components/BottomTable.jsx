@@ -2,14 +2,20 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { getPartyLogo } from '../lib/party-logos'
 
+// ---------------------------------------------------------------------------
+// Konfigurasi level hierarki wilayah
+// ---------------------------------------------------------------------------
 const LEVEL_CONFIG = {
-  kabupaten: { childLevel: 'dapil', nameLabel: 'Dapil', extraLabel: 'Jml Kecamatan', extraKey: 'kecamatanCount' },
-  dapil: { childLevel: 'kecamatan', nameLabel: 'Kecamatan', extraLabel: 'Jml Desa/Kelurahan', extraKey: 'desaCount' },
-  kecamatan: { childLevel: 'desa', nameLabel: 'Desa/Kelurahan', extraLabel: 'Jml TPS', extraKey: 'tpsCount' },
-  desa: { childLevel: 'tps', nameLabel: 'TPS', extraLabel: null, extraKey: null },
-  tps: { childLevel: null, nameLabel: 'TPS', extraLabel: null, extraKey: null },
+  kabupaten: { childLevel: 'dapil',     nameLabel: 'Dapil',           extraLabel: 'Jml Kecamatan', extraKey: 'kecamatanCount' },
+  dapil:     { childLevel: 'kecamatan', nameLabel: 'Kecamatan',       extraLabel: 'Jml Desa/Kelurahan', extraKey: 'desaCount'  },
+  kecamatan: { childLevel: 'desa',      nameLabel: 'Desa/Kelurahan',  extraLabel: 'Jml TPS',       extraKey: 'tpsCount'      },
+  desa:      { childLevel: 'tps',       nameLabel: 'TPS',             extraLabel: null,            extraKey: null             },
+  tps:       { childLevel: null,        nameLabel: 'TPS',             extraLabel: null,            extraKey: null             },
 }
 
+// ---------------------------------------------------------------------------
+// Fungsi utilitas
+// ---------------------------------------------------------------------------
 function numberValue(value) {
   const number = Number(value)
   return Number.isFinite(number) ? number : 0
@@ -136,10 +142,72 @@ async function loadChildRows({ pemiluId, activeLevel, activeId, dapilId, kecamat
   return []
 }
 
+// ---------------------------------------------------------------------------
+// Konstanta style tabel
+// ---------------------------------------------------------------------------
 const cellClass = 'border border-table-border'
 const headerClass = `${cellClass} bg-surface-warm px-3 py-2 text-center font-bold text-primary-header align-middle`
 const bodyClass = `${cellClass} px-3 py-2 align-middle`
 
+// ---------------------------------------------------------------------------
+// Sub-komponen: Tabel Perolehan Partai (transposed)
+// Baris = partai, Kolom = wilayah child
+// ---------------------------------------------------------------------------
+function PartyMatrixTable({ rows, parties, loading, partyLoading, error, activeLevel, isTouchDevice, onSelectRegion }) {
+  const config = LEVEL_CONFIG[activeLevel] || LEVEL_CONFIG.kabupaten
+
+  if (loading) {
+    return <tbody><tr><td colSpan={2 + (rows.length || 1)} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Memuat data perolehan partai...</td></tr></tbody>
+  }
+  if (error) {
+    return <tbody><tr><td colSpan={2 + (rows.length || 1)} className={`${bodyClass} px-3 py-8 text-center text-red-600`}>{error}</td></tr></tbody>
+  }
+  if (!parties.length) {
+    return <tbody><tr><td colSpan={2} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Pilih wilayah untuk melihat perolehan partai.</td></tr></tbody>
+  }
+
+  const colCount = 2 + rows.length
+
+  return (
+    <tbody>
+      {parties.map((party, index) => (
+        <tr key={party.kode_partai || index}>
+          {/* Kolom No. */}
+          <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] bg-white text-center tabular-nums ${bodyClass}`}>{index + 1}</td>
+          {/* Kolom Partai (logo + nama) */}
+          <td className={`sticky left-[48px] z-10 min-w-[150px] max-w-[180px] bg-white ${bodyClass}`}>
+            <span className="flex items-center gap-1.5 min-w-0">
+              <img src={getPartyLogo(party.kode_partai)} alt={party.nama_partai} className="w-[22px] h-[22px] shrink-0 rounded-sm object-cover" />
+              <span className="break-words text-xs">{party.nama_partai}</span>
+            </span>
+          </td>
+          {/* Kolom per wilayah */}
+          {rows.length === 0 ? (
+            <td className={`${bodyClass} min-w-[90px] text-right tabular-nums text-muted`}>—</td>
+          ) : (
+            rows.map((row) => {
+              const votes = numberValue(row.partyVotes?.[party.kode_partai])
+              return (
+                <td
+                  key={row.id}
+                  className={`${bodyClass} min-w-[90px] text-right tabular-nums${config.childLevel ? ' cursor-pointer hover:bg-surface-warm' : ''}`}
+                  onClick={config.childLevel && isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
+                  onDoubleClick={config.childLevel && !isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
+                >
+                  {partyLoading && !row._partyLoaded ? '…' : votes.toLocaleString('id-ID')}
+                </td>
+              )
+            })
+          )}
+        </tr>
+      ))}
+    </tbody>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Komponen utama BottomTable
+// ---------------------------------------------------------------------------
 export default function BottomTable({
   pemiluId,
   activeLevel,
@@ -154,7 +222,6 @@ export default function BottomTable({
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [search, setSearch] = useState('')
-  const [tableMode, setTableMode] = useState('summary')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [partyLoading, setPartyLoading] = useState(false)
@@ -162,6 +229,8 @@ export default function BottomTable({
   const [isTouchDevice, setIsTouchDevice] = useState(false)
 
   const config = LEVEL_CONFIG[activeLevel] || LEVEL_CONFIG.kabupaten
+
+  // Normalisasi daftar partai dari App.jsx (sorted by nomor_urut)
   const normalizedParties = useMemo(() => (Array.isArray(parties) ? parties : [])
     .map((party) => ({
       ...party,
@@ -170,23 +239,23 @@ export default function BottomTable({
     }))
     .filter((party) => party.kode_partai), [parties])
 
+  // Untuk level TPS: satu baris dari detail prop
   const normalizedDetail = useMemo(() => {
     if (activeLevel !== 'tps' || !detail) return []
     return [normalizeRow({ ...detail, partai: parties }, 0, 'tps')]
   }, [activeLevel, detail, parties])
 
+  // Sumber baris untuk Ringkasan Wilayah (dengan search & pagination)
+  const sourceRows = activeLevel === 'tps' ? normalizedDetail : rows
   const filteredRows = useMemo(() => {
-    const source = activeLevel === 'tps' ? normalizedDetail : rows
     const query = search.trim().toLocaleLowerCase('id-ID')
-    if (!query) return source
-    return source.filter((row) => String(row.name).toLocaleLowerCase('id-ID').includes(query))
-  }, [activeLevel, normalizedDetail, rows, search])
+    if (!query) return sourceRows
+    return sourceRows.filter((row) => String(row.name).toLocaleLowerCase('id-ID').includes(query))
+  }, [sourceRows, search])
 
-  const tableRows = activeLevel === 'tps' && tableMode === 'party' ? rows : filteredRows
-  const visibleRows = tableMode === 'party' ? tableRows : filteredRows
-  const total = visibleRows.length
+  const total = filteredRows.length
   const totalPages = Math.max(1, Math.ceil(total / limit))
-  const displayRows = visibleRows.slice((page - 1) * limit, page * limit)
+  const displayRows = filteredRows.slice((page - 1) * limit, page * limit)
   const pageStart = total === 0 ? 0 : (page - 1) * limit + 1
   const pageEnd = Math.min(page * limit, total)
 
@@ -196,8 +265,9 @@ export default function BottomTable({
 
   useEffect(() => {
     setPage(1)
-  }, [activeLevel, activeId, pemiluId, limit, search, tableMode])
+  }, [activeLevel, activeId, pemiluId, limit, search])
 
+  // Load baris wilayah child
   useEffect(() => {
     if (!pemiluId || activeLevel === 'tps') {
       setRows([])
@@ -245,16 +315,15 @@ export default function BottomTable({
     return () => { cancelled = true }
   }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, config.childLevel])
 
+  // Enrich data partai untuk tabel Perolehan Partai (transposed)
+  // Hanya enrich baris yang ditampilkan di halaman aktif
   useEffect(() => {
-    if (tableMode !== 'party' || !pemiluId || (activeLevel === 'tps' && normalizedDetail.length === 0)) {
+    if (!pemiluId || (activeLevel === 'tps' && normalizedDetail.length === 0)) {
       setPartyLoading(false)
       return undefined
     }
 
-    // Hanya ambil data partai untuk baris yang sedang ditampilkan.
-    // Sebelumnya seluruh rows di-enrich sekaligus sehingga satu konteks
-    // dapat memicu request /api/summary/partai untuk seluruh baris.
-    const source = activeLevel === 'tps' ? normalizedDetail : displayRows
+    const source = activeLevel === 'tps' ? normalizedDetail : rows
     if (!source.length) {
       setPartyLoading(false)
       return undefined
@@ -272,9 +341,6 @@ export default function BottomTable({
         const enriched = await enrichPartyVotes(source[0], pemiluId, 'tps')
         if (!cancelled) setRows((current) => current.length ? [{ ...enriched, _partyLoaded: true }] : current)
       } else {
-        // Kumpulkan semua hasil enrichment ke array lokal terlebih dahulu,
-        // lalu lakukan satu kali setRows setelah semua worker selesai.
-        // Ini mencegah re-render berulang (N render → 1 render per halaman).
         const results = []
         let nextIndex = 0
 
@@ -293,11 +359,10 @@ export default function BottomTable({
           }
         }
 
-        // Dua worker cukup untuk menjaga latency tanpa membuat burst request.
+        // Dua worker concurrent untuk menjaga latency tanpa burst request
         await Promise.all([worker(), worker()])
 
         if (!cancelled && results.length) {
-          // Satu kali setRows untuk semua baris yang baru di-enrich.
           const enrichedMap = new Map(results.map((r) => [r._index, r]))
           setRows((current) => current.map((row) => enrichedMap.has(row._index) ? enrichedMap.get(row._index) : row))
         }
@@ -310,7 +375,7 @@ export default function BottomTable({
     })
 
     return () => { cancelled = true }
-  }, [tableMode, pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, page, limit, config.childLevel])
+  }, [pemiluId, activeLevel, activeId, dapilId, desaId, kecamatanList, normalizedDetail, config.childLevel])
 
   const selectRow = (row) => {
     if (!config.childLevel || activeLevel === 'tps') return
@@ -319,19 +384,16 @@ export default function BottomTable({
   }
 
   const displayValue = (row, key) => numberValue(row[key]).toLocaleString('id-ID')
-  const partyColumns = normalizedParties.map((party) => ({
-    code: party.kode_partai,
-    name: party.nama_partai,
-    shortName: party.singkatan || party.kode_partai,
-  }))
 
-  const renderStateRows = (colSpan, mode) => {
-    const modeLoading = mode === 'party' && partyLoading
-    if (loading || modeLoading) {
-      return <tbody><tr><td colSpan={colSpan} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Memuat rekap wilayah...</td></tr></tbody>
+  // ---------------------------------------------------------------------------
+  // Render: Tabel Ringkasan Wilayah (tidak berubah dari versi sebelumnya)
+  // ---------------------------------------------------------------------------
+  const renderSummaryStateRows = () => {
+    if (loading) {
+      return <tbody><tr><td colSpan={6 + (config.extraLabel ? 1 : 0)} className={`${bodyClass} px-3 py-8 text-center text-muted`}>Memuat rekap wilayah...</td></tr></tbody>
     }
-    if (error) return <tbody><tr><td colSpan={colSpan} className={`${bodyClass} px-3 py-8 text-center text-red-600`}>{error}</td></tr></tbody>
-    if (displayRows.length === 0) return <tbody><tr><td colSpan={colSpan} className={`${bodyClass} px-3 py-8 text-center text-muted`}>{search ? 'Wilayah yang dicari tidak ditemukan.' : 'Tidak ada data rekap pada konteks ini.'}</td></tr></tbody>
+    if (error) return <tbody><tr><td colSpan={6 + (config.extraLabel ? 1 : 0)} className={`${bodyClass} px-3 py-8 text-center text-red-600`}>{error}</td></tr></tbody>
+    if (displayRows.length === 0) return <tbody><tr><td colSpan={6 + (config.extraLabel ? 1 : 0)} className={`${bodyClass} px-3 py-8 text-center text-muted`}>{search ? 'Wilayah yang dicari tidak ditemukan.' : 'Tidak ada data rekap pada konteks ini.'}</td></tr></tbody>
 
     return (
       <tbody>
@@ -342,11 +404,8 @@ export default function BottomTable({
               <td className={`sticky left-0 z-10 w-[48px] min-w-[48px] bg-white text-center tabular-nums ${bodyClass}`}>{rowNumber}</td>
               <td className={`sticky left-[48px] z-10 min-w-[170px] max-w-[220px] bg-white font-bold text-wrap ${bodyClass}`}>{row.name}</td>
               {config.extraKey && <td className={`${bodyClass} text-center`}>{displayValue(row, config.extraKey)}</td>}
-              {mode === 'party' && partyColumns.map((party) => (
-                <td key={party.code} className={`${bodyClass} min-w-[76px] text-right tabular-nums`}>{numberValue(row.partyVotes?.[party.code]).toLocaleString('id-ID')}</td>
-              ))}
               <td className={`${bodyClass} min-w-[90px] text-right tabular-nums`}>{displayValue(row, 'dpt')}</td>
-              {mode === 'summary' && <td className={`${bodyClass} min-w-[135px] text-right tabular-nums`}>{displayValue(row, 'suaraSeluruhPartai')}</td>}
+              <td className={`${bodyClass} min-w-[135px] text-right tabular-nums`}>{displayValue(row, 'suaraSeluruhPartai')}</td>
               <td className={`${bodyClass} min-w-[90px] text-right tabular-nums`}>{displayValue(row, 'suaraSah')}</td>
               <td className={`${bodyClass} min-w-[105px] text-right tabular-nums`}>{displayValue(row, 'suaraTidakSah')}</td>
             </tr>
@@ -369,78 +428,120 @@ export default function BottomTable({
           <th className={`min-w-[105px] max-w-[125px] ${headerClass} text-wrap`}>Suara Tdk Sah</th>
         </tr>
       </thead>
-      {renderStateRows(6 + (config.extraLabel ? 1 : 0), 'summary')}
+      {renderSummaryStateRows()}
     </table>
   )
 
-  const renderPartyTable = () => (
-    <table className="regional-table w-max min-w-full border-collapse text-xs">
-      <thead className="sticky top-0 z-20">
-        <tr>
-          <th rowSpan={2} className={`sticky left-0 z-30 w-[48px] min-w-[48px] ${headerClass} whitespace-nowrap`}>No.</th>
-          <th rowSpan={2} className={`sticky left-[48px] z-30 min-w-[170px] max-w-[220px] ${headerClass} text-left text-wrap`}>{config.nameLabel}</th>
-          {config.extraLabel && <th rowSpan={2} className={`min-w-[120px] max-w-[150px] ${headerClass} text-wrap`}>{config.extraLabel}</th>}
-          <th rowSpan={2} className={`min-w-[90px] ${headerClass} whitespace-nowrap`}>DPT</th>
-          <th colSpan={partyColumns.length || 1} className={`${headerClass} whitespace-nowrap`}>Perolehan Suara Partai</th>
-          <th rowSpan={2} className={`min-w-[90px] ${headerClass} whitespace-nowrap`}>Suara Sah</th>
-          <th rowSpan={2} className={`min-w-[105px] max-w-[125px] ${headerClass} text-wrap`}>Suara Tdk Sah</th>
-        </tr>
-        <tr>
-          {(partyColumns.length ? partyColumns : [{ code: 'none', name: 'Tidak ada partai', shortName: '-' }]).map((party) => (
-            <th key={party.code} className={`min-w-[76px] max-w-[90px] ${headerClass} py-1.5`} title={party.name}>
-              <span className="inline-flex min-h-[30px] items-center justify-center">
-                {party.code === 'none' ? '-' : <img src={getPartyLogo(party.code)} alt={party.name} className="h-7 w-7 rounded-sm object-contain" />}
-              </span>
-            </th>
-          ))}
-        </tr>
-      </thead>
-      {renderStateRows(5 + (config.extraLabel ? 1 : 0) + Math.max(partyColumns.length, 1), 'party')}
-    </table>
-  )
+  // ---------------------------------------------------------------------------
+  // Render: Tabel Perolehan Partai (transposed — partai=baris, wilayah=kolom)
+  // ---------------------------------------------------------------------------
+  const renderPartyMatrixTable = () => {
+    // Gunakan semua rows (bukan hanya displayRows) untuk tampilkan seluruh wilayah
+    const allRows = activeLevel === 'tps' ? normalizedDetail : rows
 
+    return (
+      <table className="regional-table w-max min-w-full border-collapse text-xs">
+        <thead className="sticky top-0 z-20">
+          <tr>
+            <th className={`sticky left-0 z-30 w-[48px] min-w-[48px] ${headerClass} whitespace-nowrap`}>No.</th>
+            <th className={`sticky left-[48px] z-30 min-w-[150px] max-w-[180px] ${headerClass} text-left`}>Partai</th>
+            {allRows.length === 0 ? (
+              <th className={`min-w-[120px] ${headerClass}`}>—</th>
+            ) : (
+              allRows.map((row) => (
+                <th
+                  key={row.id}
+                  className={`min-w-[90px] max-w-[130px] ${headerClass} text-wrap${config.childLevel ? ' cursor-pointer hover:bg-surface-hover' : ''}`}
+                  title={config.childLevel ? (isTouchDevice ? 'Ketuk untuk membuka wilayah' : 'Klik dua kali untuk membuka wilayah') : undefined}
+                  onClick={config.childLevel && isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
+                  onDoubleClick={config.childLevel && !isTouchDevice ? () => onSelectRegion?.(config.childLevel, Number(row.id)) : undefined}
+                >
+                  {row.name}
+                </th>
+              ))
+            )}
+          </tr>
+        </thead>
+        <PartyMatrixTable
+          rows={allRows}
+          parties={normalizedParties}
+          loading={loading}
+          partyLoading={partyLoading}
+          error={error}
+          activeLevel={activeLevel}
+          isTouchDevice={isTouchDevice}
+          onSelectRegion={onSelectRegion}
+        />
+      </table>
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render utama: dua section terpisah
+  // ---------------------------------------------------------------------------
   return (
-    <section className="w-full min-w-0 overflow-hidden rounded-lg border border-card-border bg-surface/80 shadow-sm">
-      <div className="px-4 pt-3 pb-2">
-        <div className="flex items-start gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="shrink-0 text-primary text-xl">♟</span>
-            <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Data Perolehan Suara per Wilayah</h2>
-          </div>
-        </div>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="order-2 flex justify-start sm:order-1">
-            <div className="inline-flex shrink-0 rounded border border-card-border bg-surface p-0.5" role="group" aria-label="Mode tampilan tabel">
-              <button type="button" onClick={() => setTableMode('summary')} className={`rounded px-3 py-1.5 text-xs ${tableMode === 'summary' ? 'bg-primary text-white' : 'text-subtle hover:bg-surface-hover'}`}>Ringkasan Wilayah</button>
-              <button type="button" onClick={() => setTableMode('party')} className={`rounded px-3 py-1.5 text-xs ${tableMode === 'party' ? 'bg-primary text-white' : 'text-subtle hover:bg-surface-hover'}`}>Perolehan Partai</button>
+    <div className="flex flex-col gap-4 w-full min-w-0">
+
+      {/* ===== SECTION 1: Perolehan Partai (tabel transposed) ===== */}
+      <section className="w-full min-w-0 overflow-hidden rounded-lg border border-card-border bg-surface/80 shadow-sm">
+        <div className="px-4 pt-3 pb-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="shrink-0 text-primary text-xl">⚑</span>
+            <div className="min-w-0">
+              <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Data Perolehan Suara per Wilayah</h2>
+              <p className="m-0 text-xs text-muted mt-0.5">Perolehan Partai</p>
             </div>
           </div>
-          <label className="order-1 relative block w-full sm:order-2 sm:w-[260px]">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-icon">⌕</span>
-            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari wilayah..." className="w-full rounded border border-card-border bg-surface py-2 pl-8 pr-3 text-xs outline-none focus:border-primary" />
-          </label>
         </div>
-        <div className="pt-2 text-xs text-muted"><strong>(Kecamatan - Desa/Kelurahan - TPS)</strong></div>
-      </div>
 
-      <div className="min-w-0 px-3 pb-3">
-        <div className="regional-table-scroll w-full max-w-full min-w-0 max-h-[520px] overflow-auto border border-table-border">
-          {tableMode === 'party' ? renderPartyTable() : renderSummaryTable()}
+        <div className="min-w-0 px-3 pb-3">
+          <div className="regional-table-scroll w-full max-w-full min-w-0 max-h-[520px] overflow-auto border border-table-border">
+            {renderPartyMatrixTable()}
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-table-border px-4 py-3 text-xs text-subtle">
-        <div className="flex items-center gap-2">Baris {pageStart}-{pageEnd} dari {total} <span>Per halaman</span>
-          <select value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="rounded border border-card-border bg-white px-2 py-1.5">
-            {[10, 20, 50].map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
+      {/* ===== SECTION 2: Ringkasan Wilayah (tabel vertikal, unchanged) ===== */}
+      <section className="w-full min-w-0 overflow-hidden rounded-lg border border-card-border bg-surface/80 shadow-sm">
+        <div className="px-4 pt-3 pb-2">
+          <div className="flex items-start gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <span className="shrink-0 text-primary text-xl">♟</span>
+              <div className="min-w-0">
+                <h2 className="m-0 font-bold text-base sm:text-lg tracking-tight">Data Perolehan Suara per Wilayah</h2>
+                <p className="m-0 text-xs text-muted mt-0.5">Ringkasan Wilayah</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="pt-2 text-xs text-muted order-2 sm:order-1"><strong>(Kecamatan - Desa/Kelurahan - TPS)</strong></div>
+            <label className="order-1 relative block w-full sm:order-2 sm:w-[260px]">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-icon">⌕</span>
+              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari wilayah..." className="w-full rounded border border-card-border bg-surface py-2 pl-8 pr-3 text-xs outline-none focus:border-primary" />
+            </label>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded border border-card-border px-2.5 py-1.5 disabled:opacity-40">Sebelumnya</button>
-          <span className="font-medium text-main tabular-nums">Halaman {page} / {totalPages}</span>
-          <button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="rounded border border-card-border px-2.5 py-1.5 disabled:opacity-40">Berikutnya</button>
+
+        <div className="min-w-0 px-3 pb-3">
+          <div className="regional-table-scroll w-full max-w-full min-w-0 max-h-[520px] overflow-auto border border-table-border">
+            {renderSummaryTable()}
+          </div>
         </div>
-      </div>
-    </section>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-table-border px-4 py-3 text-xs text-subtle">
+          <div className="flex items-center gap-2">Baris {pageStart}-{pageEnd} dari {total} <span>Per halaman</span>
+            <select value={limit} onChange={(event) => setLimit(Number(event.target.value))} className="rounded border border-card-border bg-white px-2 py-1.5">
+              {[10, 20, 50].map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded border border-card-border px-2.5 py-1.5 disabled:opacity-40">Sebelumnya</button>
+            <span className="font-medium text-main tabular-nums">Halaman {page} / {totalPages}</span>
+            <button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} className="rounded border border-card-border px-2.5 py-1.5 disabled:opacity-40">Berikutnya</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
   )
 }
